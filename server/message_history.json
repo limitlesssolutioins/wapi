@@ -1,0 +1,209 @@
+[
+  {
+    "id": "3EB0F1CCE80F95D895BEA6",
+    "sessionId": "default",
+    "phone": "573006724343",
+    "message": "otra vez probando",
+    "status": "SENT",
+    "timestamp": "2026-02-09T14:01:05.810Z"
+  },
+  {
+    "id": "3EB097F3A2F9D411E176F5",
+    "sessionId": "default",
+    "phone": "3004916174",
+    "message": "Esta es la Prueba 2, conectate",
+    "status": "SENT",
+    "timestamp": "2026-02-09T15:44:06.834Z"
+  },
+  {
+    "id": "3EB0BA709FB3A9A5ADE01F",
+    "sessionId": "default",
+    "phone": "573137277393",
+    "message": "Hola",
+    "status": "SENT",
+    "timestamp": "2026-02-09T15:49:17.126Z"
+  },
+  {
+    "id": "3EB09EB77403E4200F1882",
+    "sessionId": "support",
+    "phone": "3006724343",
+    "message": "hola hola",
+    "status": "SENT",
+    "timestamp": "2026-02-09T15:51:20.030Z"
+  },
+  {
+    "id": "3EB09C21B30BF67688063C",
+    "sessionId": "default",
+    "phone": "3006724343",
+    "message": "mensaje de prueba",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:00:51.574Z"
+  },
+  {
+    "id": "3EB099D449889A5A294C92",
+    "sessionId": "default",
+    "phone": "3004916174",
+    "message": "Probando 2",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:02:37.160Z"
+  },
+  {
+    "id": "3EB0D64169DD8A294AF873",
+    "sessionId": "default",
+    "phone": "3006724343",
+    "message": "prueba con Prueba y 3006724343",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:08:01.104Z"
+  },
+  {
+    "id": "3EB0C7F8C783A6AD72DCCF",
+    "sessionId": "default",
+    "phone": "3004916174",
+    "message": "Hola Prueba 2 ",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:08:56.436Z"
+  },
+  {
+    "id": "3EB0B6AABF0D9A37DDC3E0",
+    "sessionId": "default",
+    "phone": "3004916174",
+    "message": "Pensionados con voz y con derechos.\nPrueba 2 Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:10:52.087Z"
+  },
+  {
+    "id": "failed",
+    "sessionId": "default",
+    "phone": "3222565656",
+    "message": "Pensionados con voz y con derechos.\nGARCES SOLARTE ADOLFO LEON, Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "FAILED",
+    "error": "Number 3222565656 is not registered on WhatsApp",
+    "timestamp": "2026-02-09T16:11:02.331Z"
+  },
+  {
+    "id": "3EB06B11C9E3B777E54EF1",
+    "sessionId": "default",
+    "phone": "3004916174",
+    "message": "Pensionados con voz y con derechos.\nMaria Jose Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:11:59.830Z"
+  },
+  {
+    "id": "3EB0E1D6FCCD8023256573",
+    "sessionId": "default",
+    "phone": "3006724343",
+    "message": "Pensionados con voz y con derechos.\nPrueba Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:12:53.768Z"
+  },
+  {
+    "id": "failed",
+    "sessionId": "default",
+    "phone": "3222565656",
+    "message": "Pensionados con voz y con derechos.\nGARCES SOLARTE ADOLFO LEON, Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "FAILED",
+    "error": "Number 3222565656 is not registered on WhatsApp",
+    "timestamp": "2026-02-09T16:13:06.703Z"
+  },
+  {
+    "id": "failed",
+    "sessionId": "default",
+    "phone": "3206733743",
+    "message": "Pensionados con voz y con derechos.\nCORREA SARMIENTO HECTOR IGNACIO, Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "FAILED",
+    "error": "Number 3206733743 is not registered on WhatsApp",
+    "timestamp": "2026-02-09T16:13:16.796Z"
+  },
+  {
+    "id": "failed",
+    "sessionId": "default",
+    "phone": "3104592992",
+    "message": "Pensionados con voz y con derechos.\nGUATIVA CAPADOR LUIS ENRIQUE, Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "FAILED",
+    "error": "Number 3104592992 is not registered on WhatsApp",
+    "timestamp": "2026-02-09T16:13:27.889Z"
+  },
+  {
+    "id": "3EB0ABE04C5AB73F534262",
+    "sessionId": "default",
+    "phone": "3118765888",
+    "message": "Pensionados con voz y con derechos.\nCELY VEGA RAFAEL HERNAN, Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:13:37.353Z"
+  },
+  {
+    "id": "3EB075380E83880B243DDB",
+    "sessionId": "default",
+    "phone": "3142952702",
+    "message": "Pensionados con voz y con derechos.\nSARMIENTO GUERRERO ELBER, Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:13:47.216Z"
+  },
+  {
+    "id": "3EB0B9F46C067FE2C93D8A",
+    "sessionId": "default",
+    "phone": "3114513040",
+    "message": "Pensionados con voz y con derechos.\nMARIN MU#OZ NESTOR EDUARDO, Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:13:59.117Z"
+  },
+  {
+    "id": "failed",
+    "sessionId": "default",
+    "phone": "3144779808",
+    "message": "Pensionados con voz y con derechos.\nGUARIN ARGUELLO VICTOR MANUEL, Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "FAILED",
+    "error": "Number 3144779808 is not registered on WhatsApp",
+    "timestamp": "2026-02-09T16:14:10.866Z"
+  },
+  {
+    "id": "failed",
+    "sessionId": "default",
+    "phone": "3143145802",
+    "message": "Pensionados con voz y con derechos.\nVELANDIA CACERES BENIGNO, Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "FAILED",
+    "error": "Number 3143145802 is not registered on WhatsApp",
+    "timestamp": "2026-02-09T16:14:24.752Z"
+  },
+  {
+    "id": "3EB00F085CB4499797F384",
+    "sessionId": "default",
+    "phone": "3138854155",
+    "message": "Pensionados con voz y con derechos.\nESPINEL PEREZ JOSE DE JESUS, Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:14:33.707Z"
+  },
+  {
+    "id": "3EB0F1BEE85A91AF23FA69",
+    "sessionId": "default",
+    "phone": "3004916174",
+    "message": "Pensionados con voz y con derechos.\nMaria Jose Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:14:48.526Z"
+  },
+  {
+    "id": "3EB0A91ABF5441FE4FD351",
+    "sessionId": "default",
+    "phone": "3004916174",
+    "message": "Pensionados con voz y con derechos.\nMaria Jose Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:14:48.737Z"
+  },
+  {
+    "id": "3EB03A0BDD085132375A07",
+    "sessionId": "default",
+    "phone": "3144132143",
+    "message": "Pensionados con voz y con derechos.\nLorena Camacho Solano Este 8 de marzo vota 29 al Senado – Juan Rachif, Partido Alianza Verde.",
+    "status": "SENT",
+    "timestamp": "2026-02-09T16:14:59.935Z"
+  },
+  {
+    "id": "3A9F9B57387A74B2234F",
+    "sessionId": "default",
+    "phone": "573006724343",
+    "message": "Si",
+    "status": "RECEIVED",
+    "direction": "INCOMING",
+    "timestamp": "2026-02-09T16:26:39.283Z"
+  }
+]

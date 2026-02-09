@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  wapi:
+    build: .
+    restart: always
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./wapi_data:/app/data
+      # Map auth folders dynamically or parent folder
+      - ./wapi_sessions:/app
+    environment:
+      - PORT=3001
+      # Add other env vars here
