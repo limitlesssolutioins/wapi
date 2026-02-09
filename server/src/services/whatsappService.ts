@@ -230,7 +230,9 @@ export class WhatsAppService {
         
         // Verify number existence on WhatsApp
         try {
-            const [result] = await session.socket.onWhatsApp(cleanedPhone);
+            const results = await session.socket.onWhatsApp(cleanedPhone);
+            const result = results?.[0]; // Access safely
+
             if (!result || !result.exists) {
                 throw new Error(`Number ${cleanedPhone} is not registered on WhatsApp`);
             }

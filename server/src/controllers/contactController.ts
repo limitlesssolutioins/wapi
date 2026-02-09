@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getContacts, addContact, addContactsBulk, deleteContact } from '../utils/contacts.js';
+import { getContacts, addContact, addContactsBulk, deleteContact, updateContact } from '../utils/contacts.js';
 
 export const listContacts = (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
