@@ -35,7 +35,8 @@ const clientBuildPath = path.join(__dirname, '../../client/dist');
 app.use(express.static(clientBuildPath));
 
 // SPA Fallback: Serve index.html for any unknown route (so React Router works)
-app.get('*', (req, res) => {
+// Fix for Express 5: Use splat parameter syntax or regex
+app.get('/*', (req, res) => {
     if (req.path.startsWith('/api')) {
         res.status(404).json({ error: 'API endpoint not found' });
         return;
