@@ -34,16 +34,6 @@ app.use('/api/templates', templateRoutes);
 const clientBuildPath = path.join(__dirname, '../../client/dist');
 app.use(express.static(clientBuildPath));
 
-// SPA Fallback: Serve index.html for any unknown route (so React Router works)
-// Fix for Express 5: Use splat parameter syntax or regex
-app.get('/*', (req, res) => {
-    if (req.path.startsWith('/api')) {
-        res.status(404).json({ error: 'API endpoint not found' });
-        return;
-    }
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
-});
-
 app.get('/api/stats', (_req, res) => {
     const history = getHistory();
     const contacts = getContacts();
@@ -72,6 +62,15 @@ app.get('/api/stats', (_req, res) => {
 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date() });
+});
+
+// SPA Fallback: Must be the LAST route to catch everything else
+app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api')) {
+        res.sendFile(path.join(clientBuildPath, 'index.html'));
+    } else {
+        next();
+    }
 });
 
 const server = app.listen(PORT, async () => {
