@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Send, Search, User, Check, CheckCheck, Clock, Loader2, MessageSquare, RefreshCw } from 'lucide-react';
+import { Send, Search, User, Check, Clock, Loader2, MessageSquare, RefreshCw } from 'lucide-react';
 
 interface Message {
     id: string;
