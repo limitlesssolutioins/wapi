@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { authenticateUser } from '../services/authService.js';
 
 const router = Router();
 
-router.post('/login', (req, res) => {
-    const { username, password } from req.body;
+router.post('/login', (req: Request, res: Response) => {
+    const { username, password } = req.body;
 
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and password are required' });
