@@ -41,16 +41,20 @@ export class WhatsAppService {
     async init() {
         const rootDir = path.resolve(__dirname, '../../');
         try {
+            // First, clear any internal memory state to start fresh
+            this.sessions.clear();
+
             const files = fs.readdirSync(rootDir);
             const sessionFolders = files.filter(f => f.startsWith('auth_info_') && fs.statSync(path.join(rootDir, f)).isDirectory());
             
             if (sessionFolders.length === 0) {
-                console.log('No existing sessions found. Initializing default session...');
-                await this.connect('default');
+                console.log('No existing sessions found. Ready for new connections.');
             } else {
-                console.log(`Found ${sessionFolders.length} existing sessions. Reconnecting...`);
+                console.log(`Found ${sessionFolders.length} existing sessions. Attempting clean reconnection...`);
                 for (const folder of sessionFolders) {
                     const sessionId = folder.replace('auth_info_', '');
+                    // Force a small delay between session reconnections to avoid overwhelming the socket
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                     await this.connect(sessionId);
                 }
             }
@@ -61,8 +65,18 @@ export class WhatsAppService {
 
     async connect(sessionId: string = 'default'): Promise<void> {
         const session = this.getSession(sessionId);
-        if (session.status === 'CONNECTED' || session.status === 'CONNECTING') {
-             console.log(`[${sessionId}] Session already active or connecting.`);
+        
+        // If there's an existing socket in any state, terminate it before a new attempt
+        if (session.socket) {
+            console.log(`[${sessionId}] Cleaning up existing socket before new connection attempt.`);
+            try {
+                session.socket.end(undefined);
+            } catch (e) {}
+            session.socket = null;
+        }
+
+        if (session.status === 'CONNECTED') {
+             console.log(`[${sessionId}] Session already connected.`);
              return;
         }
 
@@ -89,12 +103,14 @@ export class WhatsAppService {
             const socket = makeWASocket({
                 auth: state,
                 printQRInTerminal: false,
-                browser: ['Limitless Campaign', 'Ubuntu', '20.0.04'],
-                connectTimeoutMs: 60000,
-                defaultQueryTimeoutMs: 60000,
-                keepAliveIntervalMs: 10000,
+                browser: ['Ubuntu', 'Chrome', '110.0.5481.177'],
+                markOnlineOnConnect: false,
+                connectTimeoutMs: 120000,
+                defaultQueryTimeoutMs: 120000,
+                keepAliveIntervalMs: 20000,
                 syncFullHistory: false,
-                retryRequestDelayMs: 2000,
+                generateHighQualityLinkPreview: false,
+                retryRequestDelayMs: 5000,
             });
 
             session.socket = socket;
@@ -281,7 +297,11 @@ export class WhatsAppService {
     }
 
     async logout(sessionId: string): Promise<void> {
-        await this.disconnect(sessionId);
+        try {
+            await this.disconnect(sessionId);
+        } catch (error) {
+            console.warn(`[${sessionId}] Disconnect failed during logout, proceeding to delete files.`);
+        }
         
         const authFolder = this.getAuthFolder(sessionId);
         console.log(`[${sessionId}] Deleting auth folder: ${authFolder}`);
@@ -295,7 +315,6 @@ export class WhatsAppService {
             this.sessions.delete(sessionId);
         } catch (error) {
             console.error(`[${sessionId}] Error deleting auth folder:`, error);
-            // Don't throw, just log
         }
     }
 

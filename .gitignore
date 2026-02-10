@@ -22,6 +22,10 @@ auth_info_*/
 wapi_sessions/
 wapi_data/
 
+# WhatsApp Auth
+server/auth_info_*
+auth_info_*
+
 # Logs
 logs
 *.log
