@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getStatus, initSession, logoutSession, renameSession, sendMessage, getMessageHistory, getSessions, getChats, getConversation } from '../controllers/whatsappController.js';
+import { getStatus, initSession, logoutSession, renameSession, sendMessage, getMessageHistory, getSessions, getChats, getConversation, deleteChat } from '../controllers/whatsappController.js';
 
 const router = Router();
 
