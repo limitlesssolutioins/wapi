@@ -14,6 +14,7 @@ import { MessageTemplate, getTemplateById } from '../utils/templates.js';
 interface CreateCampaignInput {
     name: string;
     templateId: string;
+    imageUrl?: string;
     contactIds: string[];
     sessionIds: string[];
     scheduleTime: string | null;
@@ -27,7 +28,7 @@ const resolveMessage = (template: MessageTemplate, contact: { name: string, phon
 };
 
 export const createCampaign = (input: CreateCampaignInput): Campaign => {
-    const { name, templateId, contactIds, sessionIds, scheduleTime } = input;
+    const { name, templateId, imageUrl, contactIds, sessionIds, scheduleTime } = input;
     
     // 1. Validate Template
     const template = getTemplateById(templateId);
@@ -57,6 +58,7 @@ export const createCampaign = (input: CreateCampaignInput): Campaign => {
     const campaignData: Omit<Campaign, 'id' | 'createdAt' | 'stats'> = {
         name,
         templateId,
+        imageUrl,
         sessionIds,
         status,
         scheduleTime,

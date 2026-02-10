@@ -103,6 +103,9 @@ class CampaignQueue {
 
             try {
                 const resolvedMessage = this.resolveVariables(template.content, recipient);
+                if (campaign.imageUrl) {
+                    console.log(`[Campaign ${campaignId}] Sending image message to ${recipient.phone}`);
+                }
                 await waService.sendMessage(currentSessionId, recipient.phone, resolvedMessage, campaign.imageUrl);
                 
                 updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
