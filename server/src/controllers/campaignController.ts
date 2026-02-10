@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createCampaign, getCampaignProgress, listCampaigns } from '../services/campaignService.js';
+import { createCampaign, getCampaignProgress as getCampaignDetails, listCampaigns } from '../services/campaignService.js';
 
 export const create = (req: Request, res: Response) => {
     const { name, templateId, contactIds, sessionId, sessionIds, scheduleTime } = req.body;
@@ -21,9 +21,9 @@ export const create = (req: Request, res: Response) => {
 
     try {
         const campaign = createCampaign({ 
-            name, 
-            templateId, 
-            contactIds, 
+            name,
+            templateId,
+            contactIds,
             sessionIds: finalSessionIds,
             scheduleTime: scheduleTime || null,
         });
@@ -38,7 +38,7 @@ export const create = (req: Request, res: Response) => {
 export const getDetails = (req: Request, res: Response) => {
     const { id } = req.params;
     try {
-        const campaign = getCampaignProgress(id);
+        const campaign = getCampaignDetails(id as string); // Cast id to string
         if (!campaign) {
             return res.status(404).json({ error: 'Campaign not found' });
         }

@@ -1,5 +1,6 @@
 import { waService } from '../services/whatsappService.js';
-import { getCampaignById, updateCampaign, updateRecipientStatus, Campaign } from '../utils/campaigns.js';
+import { getCampaignById, updateCampaignStatus, updateRecipientStatus, Campaign, CampaignRecipient } from '../utils/campaigns.js';
+import { getTemplateById, MessageTemplate } from '../utils/templates.js';
 
 class CampaignQueue {
     private queue: string[] = [];
@@ -30,24 +31,37 @@ class CampaignQueue {
             console.error(`Campaign ${campaignId} not found`);
             return;
         }
+        
+        const template = getTemplateById(campaign.templateId);
+        if (!template) {
+            console.error(`Template ${campaign.templateId} not found for campaign ${campaignId}`);
+            updateCampaignStatus(campaignId, 'FAILED');
+            return;
+        }
 
-        // Setup session rotation
-        const sessionIds = campaign.sessionIds && campaign.sessionIds.length > 0 
-            ? campaign.sessionIds 
-            : (campaign.sessionId ? [campaign.sessionId] : []);
+        // Ensure recipients are loaded and the campaign is in a processable state
+        if (!campaign.recipients || campaign.recipients.length === 0 || (campaign.status !== 'QUEUED' && campaign.status !== 'PROCESSING')) {
+            console.log(`[Campaign ${campaignId}] Skipping, no recipients or invalid status (${campaign.status}).`);
+            return;
+        }
+
+        // If campaign is QUEUED, mark as PROCESSING now
+        if (campaign.status === 'QUEUED') {
+            updateCampaignStatus(campaignId, 'PROCESSING');
+            campaign.status = 'PROCESSING'; // Update local object for current run
+        }
+
+        const sessionIds = campaign.sessionIds;
             
         if (sessionIds.length === 0) {
             console.error(`Campaign ${campaignId} has no sessions assigned.`);
+            updateCampaignStatus(campaignId, 'FAILED');
             return;
         }
 
         let currentSessionIndex = 0;
         let messagesSentOnCurrentSession = 0;
         const ROTATION_LIMIT = 20;
-
-        // Mark as PROCESSING
-        campaign.status = 'PROCESSING';
-        updateCampaign(campaign);
 
         console.log(`[Campaign ${campaignId}] Starting — ${campaign.recipients.length} recipients using ${sessionIds.length} sessions: [${sessionIds.join(', ')}]`);
 
@@ -72,7 +86,7 @@ class CampaignQueue {
             }
 
             try {
-                const resolvedMessage = this.resolveVariables(campaign.message, recipient);
+                const resolvedMessage = this.resolveVariables(template.content, recipient);
                 console.log(`[Campaign ${campaignId}] Sending to ${recipient.name} via ${currentSessionId} [${i + 1}/${campaign.recipients.length}]`);
                 
                 await waService.sendMessage(currentSessionId, recipient.phone, resolvedMessage);
@@ -88,19 +102,15 @@ class CampaignQueue {
             }
         }
 
-        // Ensure campaign is marked completed
-        const updated = getCampaignById(campaignId);
-        if (updated && updated.status !== 'COMPLETED') {
-            updated.status = 'COMPLETED';
-            updated.completedAt = new Date().toISOString();
-            updateCampaign(updated);
-        }
-
-        console.log(`[Campaign ${campaignId}] Completed — Sent: ${updated?.sentCount}, Failed: ${updated?.failedCount}`);
+        // After processing all recipients, ensure campaign status is finalized
+        // The `updateRecipientStatus` function already checks if all are done and sets to COMPLETED
+        // So we just need to re-fetch the final state for logging
+        const finalCampaignState = getCampaignById(campaignId);
+        console.log(`[Campaign ${campaignId}] Completed — Sent: ${finalCampaignState?.stats.sent}, Failed: ${finalCampaignState?.stats.failed}`);
     }
 
-    private resolveVariables(template: string, recipient: { name: string; phone: string }): string {
-        return template
+    private resolveVariables(templateContent: string, recipient: { name: string; phone: string }): string {
+        return templateContent
             .replace(/\{\{name\}\}/g, recipient.name)
             .replace(/\{\{phone\}\}/g, recipient.phone);
     }

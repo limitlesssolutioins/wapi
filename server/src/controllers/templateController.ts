@@ -36,7 +36,7 @@ export const update = (req: Request, res: Response) => {
     }
 
     try {
-        const template = updateTemplate(id, name, content);
+        const template = updateTemplate(id as string, name, content); // Cast id to string
         res.json(template);
     } catch (error) {
         console.error(`Failed to update template ${id}:`, error);
@@ -51,7 +51,7 @@ export const update = (req: Request, res: Response) => {
 export const remove = (req: Request, res: Response) => {
     const { id } = req.params;
     try {
-        deleteTemplate(id);
+        deleteTemplate(id as string); // Cast id to string
         res.status(204).send(); // 204 No Content is appropriate for a successful deletion
     } catch (error) {
         console.error(`Failed to delete template ${id}:`, error);

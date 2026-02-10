@@ -1,5 +1,13 @@
 import db from '../db/index.js';
-import { CampaignRecipient } from './campaigns.js';
+
+export interface CampaignRecipient {
+    contactId: string;
+    phone: string;
+    name: string;
+    status: 'PENDING' | 'SENT' | 'FAILED';
+    error?: string;
+    sentAt?: string;
+}
 
 export interface Campaign {
     id: string;
@@ -17,14 +25,6 @@ export interface Campaign {
     createdAt: string;
     completedAt?: string;
     recipients?: CampaignRecipient[]; // For detailed view, not always loaded
-}
-export interface CampaignRecipient {
-    contactId: string;
-    phone: string;
-    name: string;
-    status: 'PENDING' | 'SENT' | 'FAILED';
-    error?: string;
-    sentAt?: string;
 }
 
 // Helper to calculate stats from recipients
@@ -60,6 +60,7 @@ export const getCampaigns = (page: number = 1, limit: number = 10): { data: Camp
         id: c.id,
         name: c.name,
         templateId: c.templateId,
+        sessionIds: JSON.parse(c.sessionIds || '[]'), // Ensure sessionIds is parsed here
         status: c.status,
         scheduleTime: c.scheduleTime,
         createdAt: c.createdAt,
