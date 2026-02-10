@@ -22,7 +22,7 @@ export const create = (req: Request, res: Response) => {
 };
 
 export const remove = (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     try {
         groupUtils.deleteGroup(id);
         res.json({ success: true });
