@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { createCampaign, getCampaignProgress as getCampaignDetails, listCampaigns } from '../services/campaignService.js';
 
 export const create = (req: Request, res: Response) => {
-    const { name, templateId, imageUrl, contactIds, sessionId, sessionIds, scheduleTime } = req.body;
+    const { name, templateId, imageUrl, contactIds, groupId, sessionId, sessionIds, scheduleTime } = req.body;
     
     // Normalize sessionIds from either sessionId (old) or sessionIds (new)
     const finalSessionIds = sessionIds && Array.isArray(sessionIds) && sessionIds.length > 0
@@ -15,16 +15,13 @@ export const create = (req: Request, res: Response) => {
         });
     }
 
-    if (!contactIds || !Array.isArray(contactIds)) {
-        return res.status(400).json({ error: 'contactIds must be an array' });
-    }
-
     try {
         const campaign = createCampaign({ 
             name,
             templateId,
             imageUrl,
-            contactIds,
+            contactIds: contactIds || [],
+            groupId: groupId || null,
             sessionIds: finalSessionIds,
             scheduleTime: scheduleTime || null,
         });

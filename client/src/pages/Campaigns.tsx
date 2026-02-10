@@ -53,6 +53,10 @@ interface MessageTemplate {
 
 export default function Campaigns() {
     const [contacts, setContacts] = useState<Contact[]>([]);
+    const [groups, setGroups] = useState<Group[]>([]);
+    const [selectionMode, setSelectionMode] = useState<'manual' | 'group'>('manual');
+    const [targetGroupId, setTargetGroupId] = useState<string>('');
+
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
     const [message, setMessage] = useState('');
@@ -83,25 +87,28 @@ export default function Campaigns() {
 
     useEffect(() => {
         fetchContacts();
+        fetchGroups();
         fetchHistory();
         fetchTemplates();
         fetchSessions();
     }, []);
+
+    const fetchGroups = async () => {
+        try {
+            const { data } = await api.get<Group[]>('/api/groups');
+            setGroups(data);
+        } catch (err) {
+            console.error('Failed to fetch groups', err);
+        }
+    };
 
     const fetchSessions = async () => {
         try {
             const { data } = await api.get<string[]>('/api/whatsapp/sessions');
             setAvailableSessions(data);
             if (data.length > 0) {
-                 setSelectedSessions(prev => {
-                     const next = new Set<string>();
-                     prev.forEach(s => {
-                         if (data.includes(s)) next.add(s);
-                     });
-                     if (next.size === 0 && data.includes('default')) next.add('default');
-                     else if (next.size === 0) next.add(data[0]);
-                     return next;
-                 });
+                // Select ALL sessions by default for automatic rotation
+                setSelectedSessions(new Set(data));
             }
         } catch (err) {
             console.error('Failed to fetch sessions', err);
@@ -161,7 +168,7 @@ export default function Campaigns() {
         }
     };
 
-    const toggleContact = (id: string) => {
+    const toggleContactSelection = (id: string) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
             if (next.has(id)) next.delete(id);
@@ -211,7 +218,9 @@ export default function Campaigns() {
     };
 
     const handleLaunch = async () => {
-        if (selectedIds.size === 0 || !message.trim() || selectedSessions.size === 0) return;
+        const hasRecipients = selectionMode === 'manual' ? selectedIds.size > 0 : !!targetGroupId;
+        if (!hasRecipients || !message.trim() || selectedSessions.size === 0) return;
+        
         setLaunching(true);
         try {
             let templateId = selectedTemplateId;
@@ -231,7 +240,8 @@ export default function Campaigns() {
                 name: `Campaña ${new Date().toLocaleString()}`,
                 templateId: templateId,
                 sessionIds: Array.from(selectedSessions),
-                contactIds: Array.from(selectedIds),
+                contactIds: selectionMode === 'manual' ? Array.from(selectedIds) : [],
+                groupId: selectionMode === 'group' ? targetGroupId : null,
                 imageUrl: imageUrl.trim() || null
             });
             setActiveCampaign(data);
@@ -239,6 +249,7 @@ export default function Campaigns() {
             setImageUrl('');
             setSelectedTemplateId(null);
             setSelectedIds(new Set());
+            setTargetGroupId('');
             fetchHistory();
         } catch (err) {
             console.error('Failed to create campaign', err);
@@ -319,33 +330,50 @@ export default function Campaigns() {
                 <div className="relative">
                     <button 
                         onClick={() => setShowSessionDropdown(!showSessionDropdown)}
-                        className="flex items-center gap-2 bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-medium hover:bg-slate-50 transition-colors"
+                        className={`flex items-center gap-2 border rounded-xl px-4 py-2 text-sm font-bold transition-all shadow-sm ${
+                            selectedSessions.size > 0 
+                            ? 'bg-blue-600 border-blue-600 text-white' 
+                            : 'bg-white border-slate-300 text-slate-600'
+                        }`}
                     >
-                        <span className="text-slate-600">Dispositivos:</span>
-                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
-                            {selectedSessions.size}
+                        <Users size={16} />
+                        <span>Líneas de Envío:</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${selectedSessions.size > 0 ? 'bg-white text-blue-600' : 'bg-slate-100 text-slate-600'}`}>
+                            {selectedSessions.size} / {availableSessions.length}
                         </span>
                     </button>
                     
                     {showSessionDropdown && (
-                        <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-20 p-2">
-                            <p className="text-xs font-bold text-slate-500 px-2 mb-2 uppercase">Usar para envío:</p>
-                            {availableSessions.length > 0 ? availableSessions.map(s => (
-                                <label key={s} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
-                                    <input 
-                                        type="checkbox" 
-                                        checked={selectedSessions.has(s)}
-                                        onChange={() => toggleSession(s)}
-                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="text-sm text-slate-700 capitalize">{s}</span>
-                                </label>
-                            )) : (
-                                <p className="text-xs text-slate-400 px-2">No hay sesiones activas</p>
-                            )}
-                            <div className="border-t border-slate-100 mt-2 pt-2 px-2">
-                                <p className="text-[10px] text-slate-400 leading-tight">
-                                    El sistema rotará entre los dispositivos seleccionados cada 20 mensajes.
+                        <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-3 animate-in zoom-in-95 duration-150">
+                            <div className="flex justify-between items-center mb-3 px-1">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dispositivos Disponibles</p>
+                                <button 
+                                    onClick={() => setSelectedSessions(new Set(availableSessions))}
+                                    className="text-[10px] text-blue-600 font-bold hover:underline"
+                                >
+                                    Marcar Todos
+                                </button>
+                            </div>
+                            
+                            <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                                {availableSessions.length > 0 ? availableSessions.map(s => (
+                                    <label key={s} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors border border-transparent hover:border-slate-100">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedSessions.has(s)}
+                                            onChange={() => toggleSession(s)}
+                                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-slate-700 capitalize font-medium">{s}</span>
+                                    </label>
+                                )) : (
+                                    <p className="text-xs text-slate-400 px-2 py-4 text-center">No hay sesiones activas</p>
+                                )}
+                            </div>
+                            
+                            <div className="border-t border-slate-100 mt-3 pt-3 px-1">
+                                <p className="text-[10px] text-slate-400 leading-tight text-center italic">
+                                    El sistema enviará grupos de 15 mensajes por cada línea seleccionada.
                                 </p>
                             </div>
                         </div>
@@ -361,62 +389,110 @@ export default function Campaigns() {
                 {/* Column 1 — Contacts */}
                 <div className="space-y-4">
                     <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                            <Users size={20} className="text-blue-600" />
-                            Seleccionar Destinatarios
-                            {selectedIds.size > 0 && (
-                                <span className="ml-auto bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">
-                                    {selectedIds.size} seleccionados
-                                </span>
-                            )}
-                        </h3>
-
-                        {/* Search */}
-                        <div className="relative mb-3">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Buscar contactos..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
+                        <div className="flex flex-col gap-4 mb-4">
+                            <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                                <Users size={20} className="text-blue-600" />
+                                Destinatarios
+                            </h3>
+                            
+                            {/* Toggle Mode */}
+                            <div className="flex bg-slate-100 p-1 rounded-lg">
+                                <button 
+                                    onClick={() => setSelectionMode('manual')}
+                                    className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${selectionMode === 'manual' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}
+                                >
+                                    Manual
+                                </button>
+                                <button 
+                                    onClick={() => setSelectionMode('group')}
+                                    className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${selectionMode === 'group' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}
+                                >
+                                    Por Grupo
+                                </button>
+                            </div>
                         </div>
 
-                        {/* Select/Deselect */}
-                        <div className="flex gap-2 mb-3">
-                            <button onClick={selectAll} className="text-xs text-blue-600 hover:underline">Seleccionar todos</button>
-                            <span className="text-xs text-slate-300">|</span>
-                            <button onClick={deselectAll} className="text-xs text-slate-500 hover:underline">Deseleccionar todos</button>
-                        </div>
+                        {selectionMode === 'manual' ? (
+                            <>
+                                {/* Search */}
+                                <div className="relative mb-3">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar contactos..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
 
-                        {/* Contact list */}
-                        <div className="max-h-[500px] overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
-                            {filteredContacts.length === 0 ? (
-                                <div className="p-4 text-center text-sm text-slate-400">No se encontraron contactos.</div>
-                            ) : (
-                                filteredContacts.map(c => (
-                                    <label
-                                        key={c.id}
-                                        className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer transition-colors"
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedIds.has(c.id)}
-                                            onChange={() => toggleContact(c.id)}
-                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 text-sm font-bold flex-shrink-0">
-                                            {c.name.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-medium text-slate-800 truncate">{c.name}</p>
-                                            <p className="text-xs text-slate-500">+57 {c.phone}</p>
-                                        </div>
-                                    </label>
-                                ))
-                            )}
-                        </div>
+                                {/* Select/Deselect */}
+                                <div className="flex justify-between items-center mb-3">
+                                    <div className="flex gap-2">
+                                        <button onClick={selectAll} className="text-xs text-blue-600 hover:underline">Todos</button>
+                                        <span className="text-xs text-slate-300">|</span>
+                                        <button onClick={deselectAll} className="text-xs text-slate-500 hover:underline">Ninguno</button>
+                                    </div>
+                                    <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                        {selectedIds.size} seleccionados
+                                    </span>
+                                </div>
+
+                                {/* Contact list */}
+                                <div className="max-h-[400px] overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                                    {filteredContacts.length === 0 ? (
+                                        <div className="p-4 text-center text-sm text-slate-400">No se encontraron contactos.</div>
+                                    ) : (
+                                        filteredContacts.map(c => (
+                                            <label
+                                                key={c.id}
+                                                className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer transition-colors"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedIds.has(c.id)}
+                                                    onChange={() => toggleContactSelection(c.id)}
+                                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-sm font-medium text-slate-800 truncate">{c.name}</p>
+                                                    <p className="text-[10px] text-slate-500">+57 {c.phone}</p>
+                                                </div>
+                                            </label>
+                                        ))
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="space-y-3">
+                                <p className="text-xs text-slate-500">Selecciona el grupo al que deseas enviar esta campaña:</p>
+                                <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                                    {groups.length === 0 ? (
+                                        <p className="text-sm text-slate-400 text-center py-10">No hay grupos creados.</p>
+                                    ) : (
+                                        groups.map(group => (
+                                            <button
+                                                key={group.id}
+                                                onClick={() => setTargetGroupId(group.id)}
+                                                className={`w-full text-left p-3 rounded-xl border transition-all ${
+                                                    targetGroupId === group.id 
+                                                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+                                                        : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className={`font-bold text-sm ${targetGroupId === group.id ? 'text-blue-700' : 'text-slate-700'}`}>
+                                                        {group.name}
+                                                    </span>
+                                                    {targetGroupId === group.id && <CheckCircle size={16} className="text-blue-500" />}
+                                                </div>
+                                                <p className="text-xs text-slate-500">{group.contactCount} contactos</p>
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -559,7 +635,7 @@ export default function Campaigns() {
 
                         <button
                             onClick={handleLaunch}
-                            disabled={launching || selectedIds.size === 0 || !message.trim()}
+                            disabled={launching || (selectionMode === 'manual' ? selectedIds.size === 0 : !targetGroupId) || !message.trim()}
                             className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
                         >
                             {launching ? (
@@ -568,7 +644,7 @@ export default function Campaigns() {
                                 </>
                             ) : (
                                 <>
-                                    <Send size={16} /> Lanzar Campaña ({selectedIds.size} destinatarios)
+                                    <Send size={16} /> {selectionMode === 'manual' ? `Lanzar Campaña (${selectedIds.size})` : `Lanzar a Grupo (${groups.find(g => g.id === targetGroupId)?.contactCount || 0})`}
                                 </>
                             )}
                         </button>

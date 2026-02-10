@@ -16,6 +16,7 @@ interface CreateCampaignInput {
     templateId: string;
     imageUrl?: string;
     contactIds: string[];
+    groupId?: string | null;
     sessionIds: string[];
     scheduleTime: string | null;
 }
@@ -28,7 +29,7 @@ const resolveMessage = (template: MessageTemplate, contact: { name: string, phon
 };
 
 export const createCampaign = (input: CreateCampaignInput): Campaign => {
-    const { name, templateId, imageUrl, contactIds, sessionIds, scheduleTime } = input;
+    const { name, templateId, imageUrl, contactIds, groupId, sessionIds, scheduleTime } = input;
     
     // 1. Validate Template
     const template = getTemplateById(templateId);
@@ -36,12 +37,20 @@ export const createCampaign = (input: CreateCampaignInput): Campaign => {
         throw new Error('Template not found');
     }
     
-    // 2. Fetch contacts (either all or a selection)
-    const contactsToProcess = contactIds.length > 0 
-        ? contactIds.map(id => getContactById(id)).filter(c => c)
-        : getAllContacts();
+    // 2. Fetch contacts (either from groupId, manual selection, or all)
+    let contactsToProcess;
+    
+    if (groupId) {
+        // Fetch all contacts from a specific group
+        const { data } = getContacts(1, 100000, '', groupId);
+        contactsToProcess = data;
+    } else if (contactIds.length > 0) {
+        contactsToProcess = contactIds.map(id => getContactById(id)).filter(c => c);
+    } else {
+        contactsToProcess = getAllContacts();
+    }
 
-    if (contactsToProcess.length === 0) {
+    if (!contactsToProcess || contactsToProcess.length === 0) {
         throw new Error('No valid contacts found for the campaign');
     }
 
