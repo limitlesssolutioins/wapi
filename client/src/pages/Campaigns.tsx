@@ -8,6 +8,12 @@ interface Contact {
     phone: string;
 }
 
+interface Group {
+    id: string;
+    name: string;
+    contactCount: number;
+}
+
 interface CampaignRecipient {
     contactId: string;
     phone: string;
