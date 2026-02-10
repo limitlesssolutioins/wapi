@@ -142,13 +142,15 @@ export class WhatsAppService {
                 try {
                     if (m.type === 'notify' || m.type === 'append') {
                         for (const msg of m.messages) {
+                            // Extreme cleaning of JID to get only the numeric Phone Number
                             const remoteJid = msg.key.remoteJid || '';
                             let phone = remoteJid.split('@')[0].split(':')[0];
-                            phone = phone.replace(/\D/g, ''); // Clean to numeric only
+                            phone = phone.replace(/\D/g, ''); // Remove all non-numeric characters
 
                             const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
                             
                             if (text && !remoteJid.includes('@g.us')) {
+                                console.log(`[${sessionId}] Storing message from/to: ${phone}`);
                                 if (!msg.key.fromMe) {
                                     logMessage({
                                         id: msg.key.id || 'unknown',
