@@ -19,7 +19,8 @@ export default function Inbox() {
     const [newMessage, setNewMessage] = useState('');
     const [sending, setSending] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sessionId, setSessionId] = useState('default');
+    const [availableSessions, setAvailableSessions] = useState<string[]>([]);
+    const [sessionId, setSessionId] = useState('');
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -27,7 +28,20 @@ export default function Inbox() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
+    const fetchSessions = async () => {
+        try {
+            const { data } = await api.get<string[]>('/api/whatsapp/sessions');
+            setAvailableSessions(data);
+            if (data.length > 0 && !sessionId) {
+                setSessionId(data[0]);
+            }
+        } catch (err) {
+            console.error('Failed to fetch sessions', err);
+        }
+    };
+
     const fetchChats = async () => {
+        if (!sessionId) return;
         try {
             const { data } = await api.get<Message[]>(`/api/whatsapp/chats?sessionId=${sessionId}`);
             // Filter unique phones just in case backend doesn't perfectly
@@ -86,9 +100,15 @@ export default function Inbox() {
     };
 
     useEffect(() => {
-        fetchChats();
-        const interval = setInterval(fetchChats, 10000);
-        return () => clearInterval(interval);
+        fetchSessions();
+    }, []);
+
+    useEffect(() => {
+        if (sessionId) {
+            fetchChats();
+            const interval = setInterval(fetchChats, 10000);
+            return () => clearInterval(interval);
+        }
     }, [sessionId]);
 
     useEffect(() => {
@@ -121,14 +141,18 @@ export default function Inbox() {
                             className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                         />
                     </div>
-                    {/* Session Selector (Mini) */}
+                    {/* Session Selector */}
                     <div className="mt-3 flex items-center gap-2">
-                         <span className="text-xs text-slate-500">Sesión:</span>
-                         <input 
+                         <span className="text-xs font-semibold text-slate-500">Dispositivo:</span>
+                         <select 
                             value={sessionId}
                             onChange={(e) => setSessionId(e.target.value)}
-                            className="text-xs border rounded px-1 py-0.5 w-full bg-slate-50"
-                         />
+                            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 w-full bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 capitalize font-medium"
+                         >
+                            {availableSessions.map(s => (
+                                <option key={s} value={s}>{s}</option>
+                            ))}
+                         </select>
                     </div>
                 </div>
 

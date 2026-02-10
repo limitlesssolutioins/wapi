@@ -155,12 +155,14 @@ export class WhatsAppService {
             // Listen for incoming messages... (Rest of the code remains the same)
             socket.ev.on('messages.upsert', async (m) => {
                 try {
-                    if (m.type === 'notify') {
+                    if (m.type === 'notify' || m.type === 'append') {
                         for (const msg of m.messages) {
-                            if (!msg.key.fromMe && msg.message) {
-                                const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
-                                if (text) {
-                                    const phone = msg.key.remoteJid?.replace('@s.whatsapp.net', '') || 'unknown';
+                            const phone = msg.key.remoteJid?.replace('@s.whatsapp.net', '') || 'unknown';
+                            const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
+                            
+                            if (text) {
+                                // Log INCOMING messages from others
+                                if (!msg.key.fromMe) {
                                     console.log(`[${sessionId}] Incoming message from ${phone}: ${text}`);
                                     logMessage({
                                         id: msg.key.id || 'unknown',
@@ -170,12 +172,23 @@ export class WhatsAppService {
                                         status: 'RECEIVED',
                                         direction: 'INCOMING'
                                     });
+                                } 
+                                // Optionally log OUTGOING messages sent from other devices (sync)
+                                else if (msg.key.fromMe && m.type === 'notify') {
+                                    logMessage({
+                                        id: msg.key.id || 'unknown',
+                                        sessionId,
+                                        phone,
+                                        message: text,
+                                        status: 'SENT',
+                                        direction: 'OUTGOING'
+                                    });
                                 }
                             }
                         }
                     }
                 } catch (err) {
-                    console.error(`[${sessionId}] Error processing incoming message:`, err);
+                    console.error(`[${sessionId}] Error processing message upsert:`, err);
                 }
             });
             
