@@ -157,10 +157,13 @@ export class WhatsAppService {
                 try {
                     if (m.type === 'notify' || m.type === 'append') {
                         for (const msg of m.messages) {
-                            const phone = msg.key.remoteJid?.replace('@s.whatsapp.net', '') || 'unknown';
+                            // Improved phone extraction
+                            const remoteJid = msg.key.remoteJid || '';
+                            const phone = remoteJid.split('@')[0].split(':')[0]; // Handles 57300...:1@s.whatsapp.net y @lid
+                            
                             const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
                             
-                            if (text) {
+                            if (text && !remoteJid.includes('@g.us')) { // Skip groups for now to keep inbox clean
                                 // Log INCOMING messages from others
                                 if (!msg.key.fromMe) {
                                     console.log(`[${sessionId}] Incoming message from ${phone}: ${text}`);
