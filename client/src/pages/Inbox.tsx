@@ -208,7 +208,7 @@ export default function Inbox() {
                                 </div>
                                 <button
                                     onClick={(e) => handleDeleteChat(chat.phone, e)}
-                                    className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-500 transition-all self-center hover:bg-red-50 rounded-full"
+                                    className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors self-center border border-red-100 shadow-sm"
                                     title="Eliminar chat"
                                 >
                                     <Trash2 size={16} />

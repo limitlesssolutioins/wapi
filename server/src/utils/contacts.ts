@@ -20,8 +20,8 @@ export const getContacts = (
     const params: any[] = [];
 
     if (groupId === 'unassigned') {
-        query += ' AND (groupId IS NULL OR groupId = "")';
-        countQuery += ' AND (groupId IS NULL OR groupId = "")';
+        query += " AND (groupId IS NULL OR groupId = '')";
+        countQuery += " AND (groupId IS NULL OR groupId = '')";
     } else if (groupId) {
         query += ' AND groupId = ?';
         countQuery += ' AND groupId = ?';
