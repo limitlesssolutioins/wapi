@@ -157,13 +157,22 @@ export class WhatsAppService {
                 try {
                     if (m.type === 'notify' || m.type === 'append') {
                         for (const msg of m.messages) {
-                            // Improved phone extraction
                             const remoteJid = msg.key.remoteJid || '';
-                            const phone = remoteJid.split('@')[0].split(':')[0]; // Handles 57300...:1@s.whatsapp.net y @lid
                             
+                            // Try to get the real phone number (PN) instead of the LID
+                            // Baileys sometimes provides the PN in msg.key.participant or we can extract it if it's the standard format
+                            let phone = remoteJid.split('@')[0];
+                            
+                            // If it's a LID (very long number), we try to find the PN in other fields if available
+                            // But usually, the most reliable way without a full store is to check if it's the right format
+                            if (phone.includes(':')) phone = phone.split(':')[0];
+                            
+                            // Clean non-numeric stuff just in case
+                            phone = phone.replace(/\D/g, '');
+
                             const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
                             
-                            if (text && !remoteJid.includes('@g.us')) { // Skip groups for now to keep inbox clean
+                            if (text && !remoteJid.includes('@g.us')) { 
                                 // Log INCOMING messages from others
                                 if (!msg.key.fromMe) {
                                     console.log(`[${sessionId}] Incoming message from ${phone}: ${text}`);

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { waService } from '../services/whatsappService.js';
 import { getHistory } from '../utils/logger.js';
+import db from '../db/index.js';
 
 export const getStatus = (req: Request, res: Response) => {
     const sessionId = (req.query.sessionId as string) || 'default';
@@ -108,5 +109,23 @@ export const getConversation = (req: Request, res: Response) => {
         res.json(conversation);
     } catch (error) {
         res.status(500).json({ error: "Failed to retrieve conversation" });
+    }
+};
+
+export const deleteChat = (req: Request, res: Response) => {
+    const { phone } = req.params;
+    const sessionId = req.query.sessionId as string;
+    
+    if (!phone) {
+        return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    try {
+        const stmt = db.prepare('DELETE FROM messages WHERE phone = ? AND session_id = ?');
+        stmt.run(phone, sessionId);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error deleting chat:', error);
+        res.status(500).json({ error: 'Failed to delete chat' });
     }
 };

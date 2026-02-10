@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
-import { Send, Search, User, Check, Clock, Loader2, MessageSquare, RefreshCw } from 'lucide-react';
+import { Send, Search, User, Check, Clock, Loader2, MessageSquare, RefreshCw, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Message {
     id: string;
@@ -60,6 +61,24 @@ export default function Inbox() {
             setTimeout(scrollToBottom, 100);
         } catch (error) {
             console.error('Error fetching conversation:', error);
+        }
+    };
+
+    const handleDeleteChat = async (phone: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm('¿Estás seguro de que deseas eliminar este chat del buzón?')) return;
+        
+        try {
+            await api.delete(`/api/whatsapp/chats/${phone}?sessionId=${sessionId}`);
+            toast.success('Chat eliminado');
+            if (activeChat === phone) {
+                setActiveChat(null);
+                setMessages([]);
+            }
+            fetchChats();
+        } catch (error) {
+            console.error('Error deleting chat:', error);
+            toast.error('No se pudo eliminar el chat');
         }
     };
 
@@ -187,6 +206,13 @@ export default function Inbox() {
                                         {chat.message}
                                     </p>
                                 </div>
+                                <button
+                                    onClick={(e) => handleDeleteChat(chat.phone, e)}
+                                    className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-500 transition-all self-center"
+                                    title="Eliminar chat"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
                             </button>
                         ))
                     )}
@@ -207,7 +233,7 @@ export default function Inbox() {
                                     <h3 className="font-bold text-slate-800">+57 {activeChat}</h3>
                                     <div className="text-xs text-green-600 flex items-center gap-1">
                                         <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                                        En línea (Simulado)
+                                        En línea
                                     </div>
                                 </div>
                             </div>

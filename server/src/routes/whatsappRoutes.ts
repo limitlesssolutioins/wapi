@@ -12,5 +12,6 @@ router.post('/send', sendMessage);
 router.get('/history', getMessageHistory);
 router.get('/chats', getChats);
 router.get('/chats/:phone', getConversation);
+router.delete('/chats/:phone', deleteChat);
 
 export default router;
