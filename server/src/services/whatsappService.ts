@@ -68,7 +68,7 @@ export class WhatsAppService {
 
         session.status = 'CONNECTING';
         
-        // Timeout safety: Reset if stuck in CONNECTING for too long (30s)
+        // Timeout safety: Reset if stuck in CONNECTING for too long (60s)
         const connectionTimeout = setTimeout(() => {
             if (session.status === 'CONNECTING') {
                 console.warn(`[${sessionId}] Connection timed out. Resetting status.`);
@@ -78,7 +78,7 @@ export class WhatsAppService {
                     session.socket = null;
                 }
             }
-        }, 30000);
+        }, 60000);
 
         try {
             const authFolder = this.getAuthFolder(sessionId);
@@ -89,12 +89,12 @@ export class WhatsAppService {
             const socket = makeWASocket({
                 auth: state,
                 printQRInTerminal: false,
-                browser: ['Limitless Campaign', 'Chrome', '1.0.0'],
-                connectTimeoutMs: 20000,
-                defaultQueryTimeoutMs: 20000,
+                browser: ['Limitless Campaign', 'Ubuntu', '20.0.04'],
+                connectTimeoutMs: 60000,
+                defaultQueryTimeoutMs: 60000,
                 keepAliveIntervalMs: 10000,
                 syncFullHistory: false,
-                retryRequestDelayMs: 500,
+                retryRequestDelayMs: 2000,
             });
 
             session.socket = socket;

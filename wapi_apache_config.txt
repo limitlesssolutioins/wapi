@@ -12,9 +12,9 @@
 
     # --- Reglas de Proxy ---
 
-    # 1. Proxy para las rutas de la API (WebSocket para Baileys y HTTP)
+    # 1. Proxy para las rutas de la API (HTTP)
     # Estas rutas van directamente a tu app Node.js en el puerto 3001
-    ProxyPass /api ws://127.0.0.1:3001/api
+    ProxyPass /api http://127.0.0.1:3001/api
     ProxyPassReverse /api http://127.0.0.1:3001/api
 
     # 2. Proxy para TODO LO DEMÁS (Frontend de React y otras rutas)

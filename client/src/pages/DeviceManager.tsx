@@ -105,7 +105,7 @@ export default function DeviceManager() {
     useEffect(() => {
         setStatusData({ status: 'DISCONNECTED', qrCode: null }); 
         fetchStatus();
-        const interval = setInterval(fetchStatus, 5000);
+        const interval = setInterval(fetchStatus, 2000);
         return () => clearInterval(interval);
     }, [currentSession]);
 
