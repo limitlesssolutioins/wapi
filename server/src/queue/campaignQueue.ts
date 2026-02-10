@@ -26,87 +26,103 @@ class CampaignQueue {
     }
 
     private async processCampaign(campaignId: string): Promise<void> {
+        console.log(`[Campaign ${campaignId}] Processing started...`);
         const campaign = getCampaignById(campaignId);
         if (!campaign) {
-            console.error(`Campaign ${campaignId} not found`);
+            console.error(`[Campaign ${campaignId}] Error: Campaign not found in database.`);
             return;
         }
         
         const template = getTemplateById(campaign.templateId);
         if (!template) {
-            console.error(`Template ${campaign.templateId} not found for campaign ${campaignId}`);
+            console.error(`[Campaign ${campaignId}] Error: Template ${campaign.templateId} not found.`);
             updateCampaignStatus(campaignId, 'FAILED');
             return;
         }
 
         // Ensure recipients are loaded and the campaign is in a processable state
-        if (!campaign.recipients || campaign.recipients.length === 0 || (campaign.status !== 'QUEUED' && campaign.status !== 'PROCESSING')) {
-            console.log(`[Campaign ${campaignId}] Skipping, no recipients or invalid status (${campaign.status}).`);
+        if (!campaign.recipients || campaign.recipients.length === 0) {
+            console.log(`[Campaign ${campaignId}] No recipients found. Completing.`);
+            updateCampaignStatus(campaignId, 'COMPLETED');
+            return;
+        }
+
+        if (campaign.status !== 'QUEUED' && campaign.status !== 'PROCESSING') {
+            console.log(`[Campaign ${campaignId}] Skipping: Invalid status (${campaign.status}).`);
             return;
         }
 
         // If campaign is QUEUED, mark as PROCESSING now
         if (campaign.status === 'QUEUED') {
             updateCampaignStatus(campaignId, 'PROCESSING');
-            campaign.status = 'PROCESSING'; // Update local object for current run
+            campaign.status = 'PROCESSING';
         }
 
         const sessionIds = campaign.sessionIds;
             
-        if (sessionIds.length === 0) {
-            console.error(`Campaign ${campaignId} has no sessions assigned.`);
+        if (!sessionIds || sessionIds.length === 0) {
+            console.error(`[Campaign ${campaignId}] Error: No sessions assigned.`);
             updateCampaignStatus(campaignId, 'FAILED');
             return;
         }
 
         let currentSessionIndex = 0;
         let messagesSentOnCurrentSession = 0;
-        const ROTATION_LIMIT = 20;
+        const ROTATION_LIMIT = 15; // Rotar cada 15 mensajes para mayor seguridad
 
-        console.log(`[Campaign ${campaignId}] Starting — ${campaign.recipients.length} recipients using ${sessionIds.length} sessions: [${sessionIds.join(', ')}]`);
+        console.log(`[Campaign ${campaignId}] Running: ${campaign.recipients.length} recipients using sessions: [${sessionIds.join(', ')}]`);
 
         for (let i = 0; i < campaign.recipients.length; i++) {
             const recipient = campaign.recipients[i];
+            
+            // Re-fetch campaign state occasionally to check if it was PAUSED or CANCELLED
+            if (i % 5 === 0) {
+                const currentStatus = getCampaignById(campaignId)?.status;
+                if (currentStatus === 'PAUSED' || currentStatus === 'FAILED') {
+                    console.log(`[Campaign ${campaignId}] Stopping: Status changed to ${currentStatus}`);
+                    return;
+                }
+            }
+
             if (recipient.status !== 'PENDING') continue;
 
             // Session Rotation Logic
-            if (messagesSentOnCurrentSession >= ROTATION_LIMIT) {
+            if (messagesSentOnCurrentSession >= ROTATION_LIMIT && sessionIds.length > 1) {
                 messagesSentOnCurrentSession = 0;
                 currentSessionIndex = (currentSessionIndex + 1) % sessionIds.length;
-                console.log(`[Campaign ${campaignId}] Rotated to session: ${sessionIds[currentSessionIndex]} (Limit ${ROTATION_LIMIT} reached)`);
+                console.log(`[Campaign ${campaignId}] Rotated session to: ${sessionIds[currentSessionIndex]}`);
             }
             
             const currentSessionId = sessionIds[currentSessionIndex];
 
-            // Random delay 8-15s (skip delay before first message)
+            // Random delay 10-20s (Antiban)
             if (i > 0) {
-                const delay = Math.floor(Math.random() * 7000) + 8000;
-                console.log(`[Campaign ${campaignId}] Waiting ${delay}ms before next message...`);
+                const delay = Math.floor(Math.random() * 10000) + 10000;
                 await this.sleep(delay);
             }
 
             try {
                 const resolvedMessage = this.resolveVariables(template.content, recipient);
-                console.log(`[Campaign ${campaignId}] Sending to ${recipient.name} via ${currentSessionId} [${i + 1}/${campaign.recipients.length}]`);
-                
                 await waService.sendMessage(currentSessionId, recipient.phone, resolvedMessage);
                 
                 updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
                 messagesSentOnCurrentSession++;
                 
-                console.log(`[Campaign ${campaignId}] Sent to ${recipient.name}`);
+                console.log(`[Campaign ${campaignId}] [${i + 1}/${campaign.recipients.length}] Sent to ${recipient.phone}`);
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 updateRecipientStatus(campaignId, recipient.contactId, 'FAILED', errorMsg);
-                console.error(`[Campaign ${campaignId}] Failed to send to ${recipient.name} via ${currentSessionId}: ${errorMsg}`);
+                console.error(`[Campaign ${campaignId}] [${i + 1}/${campaign.recipients.length}] Failed for ${recipient.phone}: ${errorMsg}`);
+                
+                // Si la sesión se desconectó, intentar rotar inmediatamente si hay más sesiones
+                if (errorMsg.includes('disconnected') && sessionIds.length > 1) {
+                    currentSessionIndex = (currentSessionIndex + 1) % sessionIds.length;
+                    console.log(`[Campaign ${campaignId}] Session error, rotating to: ${sessionIds[currentSessionIndex]}`);
+                }
             }
         }
 
-        // After processing all recipients, ensure campaign status is finalized
-        // The `updateRecipientStatus` function already checks if all are done and sets to COMPLETED
-        // So we just need to re-fetch the final state for logging
-        const finalCampaignState = getCampaignById(campaignId);
-        console.log(`[Campaign ${campaignId}] Completed — Sent: ${finalCampaignState?.stats.sent}, Failed: ${finalCampaignState?.stats.failed}`);
+        console.log(`[Campaign ${campaignId}] Finished.`);
     }
 
     private resolveVariables(templateContent: string, recipient: { name: string; phone: string }): string {
