@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { api } from '../services/api';
-import { Upload, ClipboardPaste, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, User, Key, Save } from 'lucide-react';
+import { Upload, ClipboardPaste, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../services/AuthContext';
+import { User, Save } from 'lucide-react';
 
 interface ParsedContact {
     name: string;
