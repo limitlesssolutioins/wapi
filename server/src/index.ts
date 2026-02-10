@@ -90,6 +90,11 @@ const server = app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
     // Initialize WhatsApp Sessions
     await waService.init();
+    
+    // Recover pending campaigns
+    import('./services/campaignService.js').then(({ recoverCampaigns }) => {
+        recoverCampaigns();
+    });
 });
 
 const gracefulShutdown = async () => {

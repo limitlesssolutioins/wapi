@@ -81,3 +81,16 @@ export const getCampaignProgress = (id: string) => {
 export const listCampaigns = (page: number, limit: number) => {
     return listCampaignsFromDb(page, limit);
 };
+
+export const recoverCampaigns = () => {
+    try {
+        const campaigns = listCampaignsFromDb(1, 100).data;
+        const pending = campaigns.filter(c => c.status === 'PROCESSING' || c.status === 'QUEUED');
+        console.log(`[Recovery] Found ${pending.length} pending campaigns to resume.`);
+        pending.forEach(c => {
+            campaignQueue.enqueue(c.id);
+        });
+    } catch (error) {
+        console.error('Failed to recover campaigns:', error);
+    }
+};

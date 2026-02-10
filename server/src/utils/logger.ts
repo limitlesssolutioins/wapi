@@ -12,9 +12,14 @@ export interface MessageLog {
 }
 
 export const logMessage = (entry: Omit<MessageLog, 'timestamp' | 'session_id'> & { sessionId: string }) => {
-    const logEntry: Omit<MessageLog, 'session_id'> & { session_id: string } = {
-        ...entry,
+    const logEntry = {
+        id: entry.id,
         session_id: entry.sessionId,
+        phone: entry.phone,
+        message: entry.message,
+        status: entry.status,
+        direction: entry.direction,
+        error: entry.error || null,
         timestamp: new Date().toISOString()
     };
     
