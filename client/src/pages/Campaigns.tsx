@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 import { Send, Search, CheckCircle, AlertTriangle, Clock, Users, History, Loader2, FileText, Trash2, Plus, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Contact {
@@ -86,7 +86,7 @@ export default function Campaigns() {
 
     const fetchSessions = async () => {
         try {
-            const { data } = await axios.get<string[]>('http://localhost:3001/api/whatsapp/sessions');
+            const { data } = await api.get<string[]>('/api/whatsapp/sessions');
             setAvailableSessions(data);
             if (data.length > 0) {
                  setSelectedSessions(prev => {
@@ -109,7 +109,7 @@ export default function Campaigns() {
         if (activeCampaign && activeCampaign.status !== 'COMPLETED') {
             pollingRef.current = setInterval(async () => {
                 try {
-                    const { data } = await axios.get<Campaign>(`http://localhost:3001/api/campaigns/${activeCampaign.id}`);
+                    const { data } = await api.get<Campaign>(`/api/campaigns/${activeCampaign.id}`);
                     setActiveCampaign(data);
                     if (data.status === 'COMPLETED') {
                         if (pollingRef.current) clearInterval(pollingRef.current);
@@ -129,7 +129,7 @@ export default function Campaigns() {
         try {
             // Requesting a high limit to load contacts for selection
             // Future improvement: Implement server-side search/pagination in this component too
-            const { data } = await axios.get<{ data: Contact[] }>('http://localhost:3001/api/contacts?limit=1000');
+            const { data } = await api.get<{ data: Contact[] }>('/api/contacts?limit=1000');
             setContacts(data.data);
         } catch (err) {
             console.error('Failed to fetch contacts', err);
@@ -138,8 +138,8 @@ export default function Campaigns() {
 
     const fetchHistory = async () => {
         try {
-            const { data } = await axios.get<{ data: CampaignSummary[], meta: any }>(
-                `http://localhost:3001/api/campaigns?page=${historyPage}&limit=10`
+            const { data } = await api.get<{ data: CampaignSummary[], meta: any }>(
+                `/api/campaigns?page=${historyPage}&limit=10`
             );
             setCampaignHistory(data.data);
             setHistoryMeta(data.meta);
@@ -150,7 +150,7 @@ export default function Campaigns() {
 
     const fetchTemplates = async () => {
         try {
-            const { data } = await axios.get<MessageTemplate[]>('http://localhost:3001/api/templates');
+            const { data } = await api.get<MessageTemplate[]>('/api/templates');
             setTemplates(data);
         } catch (err) {
             console.error('Failed to fetch templates', err);
@@ -190,7 +190,7 @@ export default function Campaigns() {
         if (selectedIds.size === 0 || !message.trim() || selectedSessions.size === 0) return;
         setLaunching(true);
         try {
-            const { data } = await axios.post<Campaign>('http://localhost:3001/api/campaigns', {
+            const { data } = await api.post<Campaign>('/api/campaigns', {
                 sessionIds: Array.from(selectedSessions),
                 message,
                 contactIds: Array.from(selectedIds),
@@ -208,7 +208,7 @@ export default function Campaigns() {
     const handleSaveTemplate = async () => {
         if (!templateName.trim() || !message.trim()) return;
         try {
-            await axios.post('http://localhost:3001/api/templates', {
+            await api.post('/api/templates', {
                 name: templateName.trim(),
                 content: message,
             });
@@ -221,7 +221,7 @@ export default function Campaigns() {
 
     const handleDeleteTemplate = async (id: string) => {
         try {
-            await axios.delete(`http://localhost:3001/api/templates/${id}`);
+            await api.delete(`/api/templates/${id}`);
             fetchTemplates();
         } catch (err) {
             console.error('Failed to delete template', err);
@@ -591,7 +591,7 @@ export default function Campaigns() {
                                         className="p-4 hover:bg-slate-50 transition-colors cursor-pointer"
                                         onClick={async () => {
                                             try {
-                                                const { data } = await axios.get<Campaign>(`http://localhost:3001/api/campaigns/${c.id}`);
+                                                const { data } = await api.get<Campaign>(`/api/campaigns/${c.id}`);
                                                 setActiveCampaign(data);
                                             } catch (err) {
                                                 console.error(err);

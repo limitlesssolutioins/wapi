@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 import { Send, Search, User, Check, Clock, Loader2, MessageSquare, RefreshCw } from 'lucide-react';
 
 interface Message {
@@ -29,7 +29,7 @@ export default function Inbox() {
 
     const fetchChats = async () => {
         try {
-            const { data } = await axios.get<Message[]>(`http://localhost:3001/api/whatsapp/chats?sessionId=${sessionId}`);
+            const { data } = await api.get<Message[]>(`/api/whatsapp/chats?sessionId=${sessionId}`);
             // Filter unique phones just in case backend doesn't perfectly
             const unique = data.filter((v, i, a) => a.findIndex(t => (t.phone === v.phone)) === i);
             setChats(unique);
@@ -40,7 +40,7 @@ export default function Inbox() {
 
     const fetchConversation = async (phone: string) => {
         try {
-            const { data } = await axios.get<Message[]>(`http://localhost:3001/api/whatsapp/chats/${phone}?sessionId=${sessionId}`);
+            const { data } = await api.get<Message[]>(`/api/whatsapp/chats/${phone}?sessionId=${sessionId}`);
             setMessages(data);
             setActiveChat(phone);
             setTimeout(scrollToBottom, 100);
@@ -69,7 +69,7 @@ export default function Inbox() {
             setNewMessage('');
             scrollToBottom();
 
-            await axios.post('http://localhost:3001/api/whatsapp/send', {
+            await api.post('/api/whatsapp/send', {
                 sessionId,
                 phone: activeChat,
                 message: tempMsg.message

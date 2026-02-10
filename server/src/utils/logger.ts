@@ -1,62 +1,45 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const LOG_FILE = path.resolve(__dirname, '../../message_history.json');
+import db from '../db/index.js';
 
 export interface MessageLog {
     id: string;
-    sessionId: string;
+    session_id: string;
     phone: string;
     message: string;
     timestamp: string;
-    status: 'SENT' | 'FAILED' | 'RECEIVED';
+    status: 'SENT' | 'FAILED' | 'RECEIVED' | 'PENDING';
     direction: 'INCOMING' | 'OUTGOING';
     error?: string;
 }
 
-export const logMessage = (entry: Omit<MessageLog, 'timestamp'>) => {
-    const logEntry: MessageLog = {
+export const logMessage = (entry: Omit<MessageLog, 'timestamp' | 'session_id'> & { sessionId: string }) => {
+    const logEntry: Omit<MessageLog, 'session_id'> & { session_id: string } = {
         ...entry,
+        session_id: entry.sessionId,
         timestamp: new Date().toISOString()
     };
-
-    let history: MessageLog[] = [];
     
     try {
-        if (fs.existsSync(LOG_FILE)) {
-            const fileContent = fs.readFileSync(LOG_FILE, 'utf-8');
-            history = JSON.parse(fileContent);
-        }
+        const stmt = db.prepare(`
+            INSERT INTO messages (id, session_id, phone, message, timestamp, status, direction, error)
+            VALUES (@id, @session_id, @phone, @message, @timestamp, @status, @direction, @error)
+        `);
+        stmt.run(logEntry);
     } catch (error) {
-        console.error('Error reading history file, starting new:', error);
-    }
-
-    history.push(logEntry);
-
-    try {
-        fs.writeFileSync(LOG_FILE, JSON.stringify(history, null, 2));
-    } catch (error) {
-        console.error('Error writing to history file:', error);
+        console.error('Error writing to message log:', error);
     }
 };
 
 export const getHistory = (sessionId?: string): MessageLog[] => {
     try {
-        if (!fs.existsSync(LOG_FILE)) return [];
-        const fileContent = fs.readFileSync(LOG_FILE, 'utf-8');
-        const history: MessageLog[] = JSON.parse(fileContent);
-        
         if (sessionId) {
-            return history.filter(h => h.sessionId === sessionId);
+            const stmt = db.prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp ASC');
+            return stmt.all(sessionId) as MessageLog[];
         }
-        return history;
-    } catch (error) {
-        console.error('Error reading history:', error);
+        const stmt = db.prepare('SELECT * FROM messages ORDER BY timestamp ASC');
+        return stmt.all() as MessageLog[];
+    } catch (error)
+    {
+        console.error('Error reading message history:', error);
         return [];
     }
 };

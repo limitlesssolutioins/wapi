@@ -6,24 +6,10 @@ export const listContacts = (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const search = (req.query.search as string || '').toLowerCase();
 
-    let contacts = getContacts();
+    // The database now handles pagination and search efficiently
+    const { data: paginatedContacts, total } = getContacts(page, limit, search);
 
-    // 1. Filter first (if search exists)
-    if (search) {
-        contacts = contacts.filter(c => 
-            c.name.toLowerCase().includes(search) || 
-            c.phone.includes(search)
-        );
-    }
-
-    // 2. Calculate pagination
-    const total = contacts.length;
     const totalPages = Math.ceil(total / limit);
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-
-    // 3. Slice data
-    const paginatedContacts = contacts.slice(startIndex, endIndex);
 
     res.json({
         data: paginatedContacts,
@@ -43,9 +29,12 @@ export const createContact = (req: Request, res: Response) => {
         return;
     }
     
-    // Auto-clean phone if needed or validate
-    const contact = addContact({ name, phone });
-    res.json(contact);
+    try {
+        const contact = addContact({ name, phone });
+        res.json(contact);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create contact' });
+    }
 };
 
 export const bulkCreate = (req: Request, res: Response): void => {
@@ -61,14 +50,22 @@ export const bulkCreate = (req: Request, res: Response): void => {
         return;
     }
 
-    const result = addContactsBulk(valid.map((c: any) => ({ name: String(c.name).trim(), phone: String(c.phone).trim() })));
-    res.json({ imported: result.imported.length, duplicates: result.duplicates });
+    try {
+        const result = addContactsBulk(valid.map((c: any) => ({ name: String(c.name).trim(), phone: String(c.phone).trim() })));
+        res.json({ imported: result.imported.length, duplicates: result.duplicates });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to bulk create contacts' });
+    }
 };
 
 export const removeContact = (req: Request, res: Response) => {
     const id = req.params.id as string;
-    deleteContact(id);
-    res.json({ success: true });
+    try {
+        deleteContact(id);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete contact' });
+    }
 };
 
 export const editContact = (req: Request, res: Response) => {

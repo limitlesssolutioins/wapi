@@ -62,39 +62,51 @@ export const sendMessage = async (req: Request, res: Response) => {
 
 export const getMessageHistory = (req: Request, res: Response) => {
     const sessionId = req.query.sessionId as string;
-    const history = getHistory(sessionId);
-    res.json(history);
+    try {
+        const history = getHistory(sessionId);
+        res.json(history);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to retrieve message history" });
+    }
 };
 
 export const getChats = (req: Request, res: Response) => {
     const sessionId = req.query.sessionId as string;
-    const history = getHistory(sessionId);
-    
-    // Group by phone number and get the latest message
-    const chatsMap = new Map();
-    
-    history.forEach(msg => {
-        const existing = chatsMap.get(msg.phone);
-        if (!existing || new Date(msg.timestamp) > new Date(existing.timestamp)) {
-            chatsMap.set(msg.phone, msg);
-        }
-    });
+    try {
+        const history = getHistory(sessionId);
+        
+        // Group by phone number and get the latest message
+        const chatsMap = new Map();
+        
+        history.forEach(msg => {
+            const existing = chatsMap.get(msg.phone);
+            if (!existing || new Date(msg.timestamp) > new Date(existing.timestamp)) {
+                chatsMap.set(msg.phone, msg);
+            }
+        });
 
-    const chats = Array.from(chatsMap.values()).sort((a, b) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
+        const chats = Array.from(chatsMap.values()).sort((a, b) => 
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
 
-    res.json(chats);
+        res.json(chats);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to retrieve chats" });
+    }
 };
 
 export const getConversation = (req: Request, res: Response) => {
     const { phone } = req.params;
     const sessionId = req.query.sessionId as string;
-    const history = getHistory(sessionId);
-    
-    const conversation = history
-        .filter(msg => msg.phone === phone)
-        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    try {
+        const history = getHistory(sessionId);
         
-    res.json(conversation);
+        const conversation = history
+            .filter(msg => msg.phone === phone)
+            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            
+        res.json(conversation);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to retrieve conversation" });
+    }
 };

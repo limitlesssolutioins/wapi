@@ -1,13 +1,23 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import db from '../db/index.js';
+import { CampaignRecipient } from './campaigns.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const CAMPAIGNS_FILE = path.resolve(__dirname, '../../campaigns.json');
-
+export interface Campaign {
+    id: string;
+    sessionIds: string[]; // Stored as JSON in DB
+    name: string; // The campaign name
+    templateId: string;
+    status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED';
+    scheduleTime: string | null;
+    stats: {
+        total: number;
+        sent: number;
+        failed: number;
+        pending: number;
+    };
+    createdAt: string;
+    completedAt?: string;
+    recipients?: CampaignRecipient[]; // For detailed view, not always loaded
+}
 export interface CampaignRecipient {
     contactId: string;
     phone: string;
@@ -17,60 +27,117 @@ export interface CampaignRecipient {
     sentAt?: string;
 }
 
-export interface Campaign {
-    id: string;
-    sessionId?: string; // Deprecated, keep for backward compatibility
-    sessionIds: string[]; // New: List of sessions to rotate
-    message: string;
-    status: 'QUEUED' | 'PROCESSING' | 'COMPLETED';
-    recipients: CampaignRecipient[];
-    totalCount: number;
-    sentCount: number;
-    failedCount: number;
-    createdAt: string;
-    completedAt?: string;
-}
+// Helper to calculate stats from recipients
+const calculateStats = (recipients: CampaignRecipient[]) => {
+    return {
+        total: recipients.length,
+        sent: recipients.filter(r => r.status === 'SENT').length,
+        failed: recipients.filter(r => r.status === 'FAILED').length,
+        pending: recipients.filter(r => r.status === 'PENDING').length,
+    };
+};
 
-export const getCampaigns = (): Campaign[] => {
-    try {
-        if (!fs.existsSync(CAMPAIGNS_FILE)) return [];
-        const content = fs.readFileSync(CAMPAIGNS_FILE, 'utf-8');
-        return JSON.parse(content);
-    } catch (error) {
-        console.error('Error reading campaigns:', error);
-        return [];
-    }
+export const getCampaigns = (page: number = 1, limit: number = 10): { data: Campaign[], meta: any } => {
+    const offset = (page - 1) * limit;
+
+    const campaignsQuery = db.prepare(`
+        SELECT *, 
+            (SELECT COUNT(*) FROM campaign_recipients WHERE campaign_id = campaigns.id) as total,
+            (SELECT COUNT(*) FROM campaign_recipients WHERE campaign_id = campaigns.id AND status = 'SENT') as sent,
+            (SELECT COUNT(*) FROM campaign_recipients WHERE campaign_id = campaigns.id AND status = 'FAILED') as failed
+        FROM campaigns 
+        ORDER BY createdAt DESC 
+        LIMIT ? OFFSET ?
+    `);
+
+    const rawCampaigns = campaignsQuery.all(limit, offset);
+    
+    const countQuery = db.prepare('SELECT COUNT(*) as total FROM campaigns');
+    const total = (countQuery.get() as any).total;
+    const totalPages = Math.ceil(total / limit);
+    
+    const data = rawCampaigns.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        templateId: c.templateId,
+        status: c.status,
+        scheduleTime: c.scheduleTime,
+        createdAt: c.createdAt,
+        stats: {
+            total: c.total,
+            sent: c.sent,
+            failed: c.failed,
+            pending: c.total - c.sent - c.failed
+        }
+    }));
+
+    return {
+        data,
+        meta: {
+            total,
+            page,
+            totalPages
+        }
+    };
 };
 
 export const getCampaignById = (id: string): Campaign | undefined => {
-    const campaigns = getCampaigns();
-    return campaigns.find(c => c.id === id);
+    const campaignRow = db.prepare('SELECT * FROM campaigns WHERE id = ?').get(id) as any;
+    if (!campaignRow) return undefined;
+
+    const recipients = db.prepare('SELECT * FROM campaign_recipients WHERE campaign_id = ?').all(id) as CampaignRecipient[];
+    
+    return {
+        id: campaignRow.id,
+        name: campaignRow.name,
+        templateId: campaignRow.templateId,
+        sessionIds: JSON.parse(campaignRow.sessionIds || '[]'),
+        status: campaignRow.status,
+        scheduleTime: campaignRow.scheduleTime,
+        createdAt: campaignRow.createdAt,
+        completedAt: campaignRow.completedAt,
+        recipients: recipients,
+        stats: calculateStats(recipients)
+    };
 };
 
-export const saveCampaign = (campaign: Campaign): Campaign => {
-    const campaigns = getCampaigns();
-    campaigns.push(campaign);
-    try {
-        fs.writeFileSync(CAMPAIGNS_FILE, JSON.stringify(campaigns, null, 2));
-        return campaign;
-    } catch (error) {
-        console.error('Error saving campaign:', error);
-        throw error;
-    }
+export const saveCampaign = (campaign: Omit<Campaign, 'id' | 'createdAt' | 'stats'>, recipients: Omit<CampaignRecipient, 'status'>[]): Campaign => {
+    const id = `camp_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
+
+    const insertCampaign = db.prepare(`
+        INSERT INTO campaigns (id, name, templateId, sessionIds, status, scheduleTime, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertRecipient = db.prepare(`
+        INSERT INTO campaign_recipients (campaign_id, contactId, phone, name)
+        VALUES (?, ?, ?, ?)
+    `);
+
+    db.transaction(() => {
+        insertCampaign.run(
+            id,
+            campaign.name,
+            campaign.templateId,
+            JSON.stringify(campaign.sessionIds),
+            campaign.status,
+            campaign.scheduleTime,
+            now
+        );
+        for (const r of recipients) {
+            insertRecipient.run(id, r.contactId, r.phone, r.name);
+        }
+    })();
+    
+    return getCampaignById(id)!;
 };
 
-export const updateCampaign = (campaign: Campaign): void => {
-    const campaigns = getCampaigns();
-    const index = campaigns.findIndex(c => c.id === campaign.id);
-    if (index === -1) throw new Error(`Campaign ${campaign.id} not found`);
-    campaigns[index] = campaign;
-    try {
-        fs.writeFileSync(CAMPAIGNS_FILE, JSON.stringify(campaigns, null, 2));
-    } catch (error) {
-        console.error('Error updating campaign:', error);
-        throw error;
-    }
+export const updateCampaignStatus = (id: string, status: Campaign['status']): void => {
+    const completedAt = (status === 'COMPLETED' || status === 'FAILED') ? new Date().toISOString() : null;
+    db.prepare('UPDATE campaigns SET status = ?, completedAt = ? WHERE id = ?').run(status, completedAt, id);
 };
+
 
 export const updateRecipientStatus = (
     campaignId: string,
@@ -78,31 +145,27 @@ export const updateRecipientStatus = (
     status: 'SENT' | 'FAILED',
     error?: string
 ): void => {
-    const campaigns = getCampaigns();
-    const campaign = campaigns.find(c => c.id === campaignId);
-    if (!campaign) return;
+    const sentAt = status === 'SENT' ? new Date().toISOString() : null;
+    db.prepare(`
+        UPDATE campaign_recipients 
+        SET status = ?, error = ?, sentAt = ? 
+        WHERE campaign_id = ? AND contactId = ?
+    `).run(status, error, sentAt, campaignId, contactId);
 
-    const recipient = campaign.recipients.find(r => r.contactId === contactId);
-    if (!recipient) return;
+    // Check if campaign is complete
+    const pendingCount = (db.prepare(`
+        SELECT COUNT(*) as count 
+        FROM campaign_recipients 
+        WHERE campaign_id = ? AND status = 'PENDING'
+    `).get(campaignId) as any).count;
 
-    recipient.status = status;
-    if (error) recipient.error = error;
-    if (status === 'SENT') recipient.sentAt = new Date().toISOString();
-
-    if (status === 'SENT') campaign.sentCount++;
-    if (status === 'FAILED') campaign.failedCount++;
-
-    const allDone = campaign.recipients.every(r => r.status !== 'PENDING');
-    if (allDone) {
-        campaign.status = 'COMPLETED';
-        campaign.completedAt = new Date().toISOString();
+    if (pendingCount === 0) {
+        updateCampaignStatus(campaignId, 'COMPLETED');
     }
+};
 
-    const index = campaigns.findIndex(c => c.id === campaignId);
-    campaigns[index] = campaign;
-    try {
-        fs.writeFileSync(CAMPAIGNS_FILE, JSON.stringify(campaigns, null, 2));
-    } catch (error) {
-        console.error('Error updating recipient status:', error);
-    }
+export const getPendingRecipients = (campaignId: string): CampaignRecipient[] => {
+    return db.prepare(`
+        SELECT * FROM campaign_recipients WHERE campaign_id = ? AND status = 'PENDING'
+    `).all(campaignId) as CampaignRecipient[];
 };

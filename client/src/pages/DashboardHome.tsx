@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 import {
     MessageSquare, Users, Smartphone, AlertTriangle, Send,
     CheckCircle, BarChart3, RefreshCw, Clock, Activity, Loader2
@@ -38,7 +38,7 @@ export default function DashboardHome() {
 
     const fetchStats = async () => {
         try {
-            const { data } = await axios.get<Stats>('http://localhost:3001/api/stats');
+            const { data } = await api.get<Stats>('/api/stats');
             setStats(data);
         } catch (err) {
             console.error('Failed to fetch stats', err);
@@ -49,7 +49,7 @@ export default function DashboardHome() {
 
     const fetchSessions = async () => {
         try {
-            const { data } = await axios.get<string[]>('http://localhost:3001/api/whatsapp/sessions');
+            const { data } = await api.get<string[]>('/api/whatsapp/sessions');
             setSessions(data);
             // Default to first session if current selection not in list
             if (data.length > 0 && !data.includes(selectedSession) && selectedSession === 'default') {
@@ -72,7 +72,7 @@ export default function DashboardHome() {
         setSendStatus('sending');
         const fullPhone = phone.startsWith('57') ? phone : `57${phone}`;
         try {
-            await axios.post('http://localhost:3001/api/whatsapp/send', { 
+            await api.post('/api/whatsapp/send', { 
                 phone: fullPhone, 
                 message,
                 sessionId: selectedSession 

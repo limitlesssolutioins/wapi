@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 import { QRCodeSVG } from 'qrcode.react';
 import { RefreshCcw, CheckCircle, Smartphone, Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,7 +22,7 @@ export default function DeviceManager() {
 
     const fetchSessions = async () => {
         try {
-            const { data } = await axios.get<string[]>('http://localhost:3001/api/whatsapp/sessions');
+            const { data } = await api.get<string[]>('/api/whatsapp/sessions');
             setSessions(data);
         } catch (err) {
             console.error(err);
@@ -31,7 +31,7 @@ export default function DeviceManager() {
 
     const fetchStatus = async () => {
         try {
-            const { data } = await axios.get(`http://localhost:3001/api/whatsapp/status?sessionId=${currentSession}`);
+            const { data } = await api.get(`/api/whatsapp/status?sessionId=${currentSession}`);
             setStatusData(data);
         } catch (error) {
             console.error('Failed to fetch status', error);
@@ -41,7 +41,7 @@ export default function DeviceManager() {
     const initSession = async () => {
         setLoading(true);
         try {
-            await axios.post('http://localhost:3001/api/whatsapp/init', { sessionId: currentSession });
+            await api.post('/api/whatsapp/init', { sessionId: currentSession });
             setTimeout(fetchStatus, 2000);
         } catch (error) {
             console.error(error);
@@ -57,7 +57,7 @@ export default function DeviceManager() {
             return;
         }
         try {
-            await axios.post('http://localhost:3001/api/whatsapp/rename', { oldId, newId: renamingValue.trim().toLowerCase() });
+            await api.post('/api/whatsapp/rename', { oldId, newId: renamingValue.trim().toLowerCase() });
             toast.success('Sesión renombrada');
             if (currentSession === oldId) setCurrentSession(renamingValue.trim().toLowerCase());
             fetchSessions();
@@ -71,7 +71,7 @@ export default function DeviceManager() {
     const handleDeleteSession = async (sessionId: string) => {
         if (!confirm(`¿Estás seguro de eliminar la sesión "${sessionId}"? Esto borrará sus datos de conexión.`)) return;
         try {
-            await axios.post('http://localhost:3001/api/whatsapp/logout', { sessionId });
+            await api.post('/api/whatsapp/logout', { sessionId });
             toast.success('Sesión eliminada');
             if (currentSession === sessionId) {
                 setCurrentSession('default');
@@ -88,7 +88,7 @@ export default function DeviceManager() {
         if (!confirm('¿Estás seguro de cerrar sesión?')) return;
         setLoading(true);
         try {
-            await axios.post('http://localhost:3001/api/whatsapp/logout', { sessionId: currentSession });
+            await api.post('/api/whatsapp/logout', { sessionId: currentSession });
             setStatusData({ status: 'DISCONNECTED', qrCode: null });
             fetchSessions();
         } catch (error) {

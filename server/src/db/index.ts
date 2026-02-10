@@ -1,0 +1,99 @@
+import Database from 'better-sqlite3';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+import bcrypt from 'bcryptjs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const dbPath = path.resolve(__dirname, '../../database.sqlite');
+
+const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
+
+// Create tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS contacts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS campaigns (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    templateId TEXT NOT NULL,
+    sessionIds TEXT, -- JSON array of session IDs
+    status TEXT NOT NULL, -- QUEUED, PROCESSING, COMPLETED, FAILED, PAUSED
+    scheduleTime TEXT,
+    createdAt TEXT DEFAULT (datetime('now')),
+    completedAt TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS campaign_recipients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id TEXT NOT NULL,
+    contactId TEXT, -- Optional link to contacts table
+    phone TEXT NOT NULL,
+    name TEXT,
+    status TEXT DEFAULT 'PENDING', -- PENDING, SENT, FAILED
+    error TEXT,
+    sentAt TEXT,
+    FOREIGN KEY(campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS templates (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    message TEXT,
+    timestamp TEXT DEFAULT (datetime('now')),
+    status TEXT, -- SENT, FAILED, RECEIVED, PENDING
+    direction TEXT, -- INCOMING, OUTGOING
+    error TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL
+  );
+  
+  -- Create indexes for performance
+  CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts(phone);
+  CREATE INDEX IF NOT EXISTS idx_campaigns_name ON campaigns(name);
+  CREATE INDEX IF NOT EXISTS idx_campaigns_templateId ON campaigns(templateId);
+  CREATE INDEX IF NOT EXISTS idx_campaign_recipients_campaign_id ON campaign_recipients(campaign_id);
+  CREATE INDEX IF NOT EXISTS idx_messages_phone ON messages(phone);
+  CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
+  CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+`);
+
+// Seed default admin user
+try {
+    const user = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
+    if (!user) {
+        const salt = bcrypt.genSaltSync(10);
+        // Default password is 'password'
+        const hash = bcrypt.hashSync('password', salt);
+        db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
+          .run('admin', hash);
+        console.log('Default admin user created.');
+    }
+} catch (error) {
+    console.error('Failed to seed admin user:', error);
+}
+
+
+export default db;

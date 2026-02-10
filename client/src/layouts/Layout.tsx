@@ -1,12 +1,14 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Smartphone, Send, Settings, Menu, Users, Zap, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Smartphone, Send, Settings, Menu, Users, Zap, MessageSquare, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
 import { Toaster } from 'sonner';
+import { useAuth } from '../services/AuthContext';
 
 export default function Layout() {
     const { pathname } = useLocation();
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const { logout } = useAuth();
 
     const navItems = [
         { icon: LayoutDashboard, label: 'Inicio', path: '/' },
@@ -81,13 +83,24 @@ export default function Layout() {
                         );
                     })}
                 </nav>
-
-                {/* Bottom brand */}
-                <div className={clsx(
-                    "px-4 py-3 border-t border-slate-800 transition-opacity duration-200",
-                    sidebarOpen ? "opacity-100" : "opacity-0"
-                )}>
-                    <p className="text-[10px] text-slate-600 uppercase tracking-widest">Wapi Solutions</p>
+                
+                {/* Logout Button */}
+                <div className="p-3">
+                    <button
+                        onClick={logout}
+                        className={clsx(
+                            "flex items-center gap-3 px-3 py-2.5 rounded-lg w-full text-left transition-all duration-150 group text-red-400 hover:bg-red-500/10 hover:text-red-300",
+                            !sidebarOpen && "justify-center"
+                        )}
+                    >
+                        <LogOut size={19} className="flex-shrink-0" />
+                        <span className={clsx(
+                            "text-sm font-medium truncate transition-opacity duration-200",
+                            sidebarOpen ? "opacity-100" : "opacity-0 w-0"
+                        )}>
+                            Cerrar Sesión
+                        </span>
+                    </button>
                 </div>
             </aside>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api } from '../services/api';
 import { UserPlus, Trash2, Search, Phone, ChevronLeft, ChevronRight, Loader2, Pencil, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -31,8 +31,8 @@ export default function Contacts() {
     const fetchContacts = async () => {
         setLoading(true);
         try {
-            const { data } = await axios.get<{ data: Contact[], meta: Meta }>(
-                `http://localhost:3001/api/contacts?page=${page}&limit=20&search=${searchTerm}`
+            const { data } = await api.get<{ data: Contact[], meta: Meta }>(
+                `/api/contacts?page=${page}&limit=20&search=${searchTerm}`
             );
             
             // Handle response structure safety
@@ -63,10 +63,10 @@ export default function Contacts() {
         e.preventDefault();
         try {
             if (editingId) {
-                await axios.put(`http://localhost:3001/api/contacts/${editingId}`, { name, phone });
+                await api.put(`/api/contacts/${editingId}`, { name, phone });
                 toast.success('Contacto actualizado');
             } else {
-                await axios.post('http://localhost:3001/api/contacts', { name, phone });
+                await api.post('/api/contacts', { name, phone });
                 toast.success('Contacto guardado');
             }
             resetForm();
@@ -92,7 +92,7 @@ export default function Contacts() {
     const handleDelete = async (id: string) => {
         if (!confirm('¿Estás seguro de eliminar este contacto?')) return;
         try {
-            await axios.delete(`http://localhost:3001/api/contacts/${id}`);
+            await api.delete(`/api/contacts/${id}`);
             toast.success('Contacto eliminado');
             fetchContacts();
         } catch (error) {

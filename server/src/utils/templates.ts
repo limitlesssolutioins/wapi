@@ -1,26 +1,17 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const TEMPLATES_FILE = path.resolve(__dirname, '../../templates.json');
+import db from '../db/index.js';
 
 export interface MessageTemplate {
     id: string;
     name: string;
     content: string;
-    createdAt: string;
-    updatedAt: string;
+    created_at: string;
+    updated_at: string;
 }
 
 export const getTemplates = (): MessageTemplate[] => {
     try {
-        if (!fs.existsSync(TEMPLATES_FILE)) return [];
-        const content = fs.readFileSync(TEMPLATES_FILE, 'utf-8');
-        return JSON.parse(content);
+        const stmt = db.prepare('SELECT * FROM templates ORDER BY created_at DESC');
+        return stmt.all() as MessageTemplate[];
     } catch (error) {
         console.error('Error reading templates:', error);
         return [];
@@ -28,24 +19,28 @@ export const getTemplates = (): MessageTemplate[] => {
 };
 
 export const getTemplateById = (id: string): MessageTemplate | undefined => {
-    return getTemplates().find(t => t.id === id);
+    try {
+        const stmt = db.prepare('SELECT * FROM templates WHERE id = ?');
+        return stmt.get(id) as MessageTemplate | undefined;
+    } catch (error) {
+        console.error(`Error reading template ${id}:`, error);
+        return undefined;
+    }
 };
 
 export const addTemplate = (name: string, content: string): MessageTemplate => {
-    const templates = getTemplates();
     const now = new Date().toISOString();
     const newTemplate: MessageTemplate = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: `tpl_${Math.random().toString(36).substr(2, 9)}`,
         name,
         content,
-        createdAt: now,
-        updatedAt: now,
+        created_at: now,
+        updated_at: now,
     };
 
-    templates.push(newTemplate);
-
     try {
-        fs.writeFileSync(TEMPLATES_FILE, JSON.stringify(templates, null, 2));
+        const stmt = db.prepare('INSERT INTO templates (id, name, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)');
+        stmt.run(newTemplate.id, newTemplate.name, newTemplate.content, newTemplate.created_at, newTemplate.updated_at);
         return newTemplate;
     } catch (error) {
         console.error('Error saving template:', error);
@@ -54,20 +49,16 @@ export const addTemplate = (name: string, content: string): MessageTemplate => {
 };
 
 export const updateTemplate = (id: string, name: string, content: string): MessageTemplate => {
-    const templates = getTemplates();
-    const index = templates.findIndex(t => t.id === id);
-    if (index === -1) throw new Error('Template not found');
-
-    templates[index] = {
-        ...templates[index],
-        name,
-        content,
-        updatedAt: new Date().toISOString(),
-    };
-
+    const updatedAt = new Date().toISOString();
     try {
-        fs.writeFileSync(TEMPLATES_FILE, JSON.stringify(templates, null, 2));
-        return templates[index];
+        const stmt = db.prepare('UPDATE templates SET name = ?, content = ?, updated_at = ? WHERE id = ?');
+        const result = stmt.run(name, content, updatedAt, id);
+
+        if (result.changes === 0) {
+            throw new Error('Template not found');
+        }
+        
+        return getTemplateById(id)!;
     } catch (error) {
         console.error('Error updating template:', error);
         throw error;
@@ -75,10 +66,9 @@ export const updateTemplate = (id: string, name: string, content: string): Messa
 };
 
 export const deleteTemplate = (id: string): void => {
-    const templates = getTemplates();
-    const filtered = templates.filter(t => t.id !== id);
     try {
-        fs.writeFileSync(TEMPLATES_FILE, JSON.stringify(filtered, null, 2));
+        const stmt = db.prepare('DELETE FROM templates WHERE id = ?');
+        stmt.run(id);
     } catch (error) {
         console.error('Error deleting template:', error);
         throw error;

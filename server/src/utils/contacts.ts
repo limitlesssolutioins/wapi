@@ -1,113 +1,90 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const CONTACTS_FILE = path.resolve(__dirname, '../../contacts.json');
+import db from '../db/index.js';
 
 export interface Contact {
     id: string;
     name: string;
     phone: string;
-    tags?: string[];
+    created_at?: string;
 }
 
-export const getContacts = (): Contact[] => {
-    try {
-        if (!fs.existsSync(CONTACTS_FILE)) return [];
-        const content = fs.readFileSync(CONTACTS_FILE, 'utf-8');
-        return JSON.parse(content);
-    } catch (error) {
-        console.error('Error reading contacts:', error);
-        return [];
+export const getContacts = (page: number = 1, limit: number = 20, search: string = ''): { data: Contact[], total: number } => {
+    const offset = (page - 1) * limit;
+    let query = 'SELECT * FROM contacts';
+    let countQuery = 'SELECT COUNT(*) as total FROM contacts';
+    const params: any[] = [];
+
+    if (search) {
+        const term = `%${search}%`;
+        query += ' WHERE name LIKE ? OR phone LIKE ?';
+        countQuery += ' WHERE name LIKE ? OR phone LIKE ?';
+        params.push(term, term);
     }
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    
+    // SQLite limits/offsets need to be at the end
+    const stmt = db.prepare(query);
+    const data = stmt.all(...params, limit, offset) as Contact[];
+
+    const countStmt = db.prepare(countQuery);
+    const total = (countStmt.get(...params) as any).total;
+
+    return { data, total };
 };
 
-export const addContact = (contact: Omit<Contact, 'id'>): Contact => {
-    const contacts = getContacts();
-    const newContact: Contact = {
-        ...contact,
-        id: Math.random().toString(36).substr(2, 9)
-    };
-    
-    contacts.push(newContact);
-    
-    try {
-        fs.writeFileSync(CONTACTS_FILE, JSON.stringify(contacts, null, 2));
-        return newContact;
-    } catch (error) {
-        console.error('Error saving contact:', error);
-        throw error;
-    }
+export const getAllContacts = (): Contact[] => {
+    return db.prepare('SELECT * FROM contacts').all() as Contact[];
+}
+
+export const getContactById = (id: string): Contact | undefined => {
+    return db.prepare('SELECT * FROM contacts WHERE id = ?').get(id) as Contact | undefined;
+};
+
+export const addContact = (contact: { name: string, phone: string }): Contact => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const stmt = db.prepare('INSERT INTO contacts (id, name, phone) VALUES (?, ?, ?)');
+    stmt.run(id, contact.name, contact.phone);
+    return { id, ...contact };
 };
 
 const normalizePhone = (phone: string): string => {
     return phone.replace(/[\s\-\(\)\+]/g, '');
 };
 
-export const addContactsBulk = (newContacts: Omit<Contact, 'id'>[]): { imported: Contact[], duplicates: number } => {
-    const contacts = getContacts();
-    const existingPhones = new Set(contacts.map(c => normalizePhone(c.phone)));
+export const addContactsBulk = (newContacts: { name: string, phone: string }[]): { imported: Contact[], duplicates: number } => {
+    const insert = db.prepare('INSERT OR IGNORE INTO contacts (id, name, phone) VALUES (?, ?, ?)');
+    const check = db.prepare('SELECT 1 FROM contacts WHERE phone = ?');
 
-    const imported: Contact[] = [];
+    let imported: Contact[] = [];
     let duplicates = 0;
 
-    for (const entry of newContacts) {
-        const normalized = normalizePhone(entry.phone);
-        if (existingPhones.has(normalized)) {
-            duplicates++;
-            continue;
+    const transaction = db.transaction((contacts: { name: string, phone: string }[]) => {
+        for (const contact of contacts) {
+            const normalized = normalizePhone(contact.phone);
+            if (check.get(normalized)) {
+                duplicates++;
+                continue;
+            }
+            const id = Math.random().toString(36).substr(2, 9);
+            insert.run(id, contact.name, normalized);
+            imported.push({ id, name: contact.name, phone: normalized });
         }
-        existingPhones.add(normalized);
-        const newContact: Contact = {
-            ...entry,
-            id: Math.random().toString(36).substr(2, 9)
-        };
-        imported.push(newContact);
-    }
+    });
 
-    if (imported.length > 0) {
-        try {
-            fs.writeFileSync(CONTACTS_FILE, JSON.stringify([...contacts, ...imported], null, 2));
-        } catch (error) {
-            console.error('Error saving contacts in bulk:', error);
-            throw error;
-        }
-    }
+    transaction(newContacts);
 
     return { imported, duplicates };
 };
 
 export const deleteContact = (id: string): void => {
-    const contacts = getContacts();
-    const filtered = contacts.filter(c => c.id !== id);
-    try {
-        fs.writeFileSync(CONTACTS_FILE, JSON.stringify(filtered, null, 2));
-    } catch (error) {
-        console.error('Error deleting contact:', error);
-        throw error;
-    }
+    db.prepare('DELETE FROM contacts WHERE id = ?').run(id);
 };
 
 export const updateContact = (id: string, updates: Partial<Omit<Contact, 'id'>>): Contact => {
-    const contacts = getContacts();
-    const index = contacts.findIndex(c => c.id === id);
-    
-    if (index === -1) {
-        throw new Error('Contact not found');
-    }
+    const current = getContactById(id);
+    if (!current) throw new Error('Contact not found');
 
-    const updatedContact = { ...contacts[index], ...updates };
-    contacts[index] = updatedContact;
-
-    try {
-        fs.writeFileSync(CONTACTS_FILE, JSON.stringify(contacts, null, 2));
-        return updatedContact;
-    } catch (error) {
-        console.error('Error updating contact:', error);
-        throw error;
-    }
+    const updated = { ...current, ...updates };
+    db.prepare('UPDATE contacts SET name = ?, phone = ? WHERE id = ?').run(updated.name, updated.phone, id);
+    return updated;
 };

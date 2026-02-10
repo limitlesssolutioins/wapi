@@ -1,0 +1,31 @@
+<VirtualHost *:80>
+    ServerName wapi.limitlesscol.com
+    # ServerAlias www.wapi.limitlesscol.com # Descomenta esta línea si también quieres que www.wapi.limitlesscol.com funcione
+
+    # En esta configuración, Apache NO servirá archivos directamente para este dominio.
+    # En su lugar, TODO el tráfico se reenviará a tu aplicación Node.js.
+    # Por lo tanto, no necesitamos un DocumentRoot aquí.
+
+    ProxyPreserveHost On
+    ProxyRequests Off
+    ProxyVia Off
+
+    # --- Reglas de Proxy ---
+
+    # 1. Proxy para las rutas de la API (WebSocket para Baileys y HTTP)
+    # Estas rutas van directamente a tu app Node.js en el puerto 3001
+    ProxyPass /api ws://127.0.0.1:3001/api
+    ProxyPassReverse /api http://127.0.0.1:3001/api
+
+    # 2. Proxy para TODO LO DEMÁS (Frontend de React y otras rutas)
+    # Todas las demás peticiones se enviarán a tu app Node.js.
+    # Tu app Node.js (Express) ya está configurada para servir:
+    # - Los archivos estáticos (CSS, JS, imágenes) desde client/dist.
+    # - El index.html para las rutas de React Router que no corresponden a archivos físicos.
+    ProxyPass / http://127.0.0.1:3001/
+    ProxyPassReverse / http://127.0.0.1:3001/
+
+    # Logs para este subdominio (opcional pero recomendado)
+    ErrorLog /home/limitlessadmin/logs/wapi-error_log
+    CustomLog /home/limitlessadmin/logs/wapi-access_log combined
+</VirtualHost>

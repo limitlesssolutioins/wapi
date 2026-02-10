@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
-import axios from 'axios';
-import { Upload, ClipboardPaste, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { api } from '../services/api';
+import { Upload, ClipboardPaste, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, User, Key, Save } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuth } from '../services/AuthContext';
 
 interface ParsedContact {
     name: string;
@@ -62,7 +64,7 @@ export default function Settings() {
         if (contacts.length === 0) return;
         setImporting(true);
         try {
-            const { data } = await axios.post('http://localhost:3001/api/contacts/bulk', { contacts });
+            const { data } = await api.post('/api/contacts/bulk', { contacts });
             setResult(data);
         } catch (error) {
             console.error('Bulk import failed', error);
@@ -81,6 +83,8 @@ export default function Settings() {
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800">Configuración</h2>
+
+            <ChangeCredentialsSection />
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
@@ -229,6 +233,111 @@ export default function Settings() {
                     </div>
                 )}
             </div>
+        </div>
+    );
+}
+
+function ChangeCredentialsSection() {
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newUsername, setNewUsername] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+    const { logout } = useAuth();
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+
+        if (newPassword && newPassword !== confirmNewPassword) {
+            toast.error('New password and confirmation do not match');
+            setLoading(false);
+            return;
+        }
+
+        if (!newUsername.trim() && !newPassword.trim()) {
+            toast.error('Provide a new username or a new password');
+            setLoading(false);
+            return;
+        }
+
+        try {
+            await api.put('/api/user/credentials', {
+                currentPassword,
+                newUsername: newUsername.trim() || undefined,
+                newPassword: newPassword.trim() || undefined,
+            });
+            toast.success('Credentials updated successfully! Please log in again.');
+            logout(); // Force re-login after credentials change
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Failed to update credentials');
+        } finally {
+            setLoading(false);
+            setCurrentPassword('');
+            setNewUsername('');
+            setNewPassword('');
+            setConfirmNewPassword('');
+        }
+    };
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <User size={20} className="text-blue-600" />
+                Cambiar Credenciales de Acceso
+            </h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre de Usuario (opcional)</label>
+                    <input
+                        type="text"
+                        placeholder="Nuevo nombre de usuario"
+                        value={newUsername}
+                        onChange={(e) => setNewUsername(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña Actual</label>
+                    <input
+                        type="password"
+                        placeholder="Tu contraseña actual"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        required
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nueva Contraseña (opcional)</label>
+                    <input
+                        type="password"
+                        placeholder="Deja vacío para no cambiar"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Confirmar Nueva Contraseña</label>
+                    <input
+                        type="password"
+                        placeholder="Repite la nueva contraseña"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        disabled={!newPassword}
+                    />
+                </div>
+                <button
+                    type="submit"
+                    disabled={loading || !currentPassword.trim() || (!newUsername.trim() && !newPassword.trim())}
+                    className="w-full py-2.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-semibold shadow-sm"
+                >
+                    <Save size={18} className="inline mr-2" />
+                    {loading ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+            </form>
         </div>
     );
 }
