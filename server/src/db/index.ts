@@ -80,6 +80,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 `);
 
+// MIGRATION: Check if 'name' column exists in contacts (fix for existing DBs)
+try {
+    const tableInfo = db.pragma('table_info(contacts)') as any[];
+    const nameColumnExists = tableInfo.some(col => col.name === 'name');
+    if (!nameColumnExists) {
+        console.log('Migrating: Adding name column to contacts table...');
+        db.exec('ALTER TABLE contacts ADD COLUMN name TEXT DEFAULT ""');
+    }
+} catch (error) {
+    console.error('Migration failed:', error);
+}
+
 // Seed default admin user
 try {
     const user = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
