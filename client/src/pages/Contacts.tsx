@@ -134,6 +134,27 @@ export default function Contacts() {
         }
     };
 
+    const handleMoveAll = async (targetGroupId: string | null) => {
+        const total = meta.total;
+        const groupName = targetGroupId ? groups.find(g => g.id === targetGroupId)?.name : 'Sin Grupo';
+        
+        if (!confirm(`¿Estás seguro de mover los ${total} contactos de esta vista a "${groupName}"?`)) return;
+        
+        try {
+            const { data } = await api.post('/api/groups/move-all', {
+                targetGroupId: targetGroupId || 'unassigned',
+                currentGroupId: selectedGroupId,
+                search: searchTerm
+            });
+            toast.success(`${data.affected} contactos movidos correctamente`);
+            setSelectedContactIds(new Set());
+            fetchContacts();
+            fetchGroups();
+        } catch (error) {
+            toast.error('Error en movimiento masivo');
+        }
+    };
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -295,6 +316,25 @@ export default function Contacts() {
 
                 {/* Main Content: Contact List */}
                 <div className="lg:col-span-3 space-y-4">
+                    {selectedContactIds.size === contacts.length && meta.total > contacts.length && (
+                        <div className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow-lg flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                            <div className="flex items-center gap-2 text-sm">
+                                <Users size={16} />
+                                <span>Has seleccionado los 20 contactos de esta página.</span>
+                            </div>
+                            <select 
+                                className="bg-white text-blue-600 text-xs font-bold px-3 py-1 rounded-lg outline-none cursor-pointer"
+                                onChange={(e) => handleMoveAll(e.target.value === 'unassigned' ? null : e.target.value)}
+                                value=""
+                            >
+                                <option value="" disabled>Mover los {meta.total} contactos a...</option>
+                                {groups.map((g: Group) => (
+                                    <option key={g.id} value={g.id}>{g.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
                     <div className="flex items-center gap-3">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />

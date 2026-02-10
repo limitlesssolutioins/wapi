@@ -37,3 +37,28 @@ export const assignContactsToGroup = (contactIds: string[], groupId: string | nu
     });
     transaction(contactIds);
 };
+
+export const moveFilteredToGroup = (
+    targetGroupId: string | null, 
+    currentGroupId: string | 'unassigned', 
+    search: string
+): number => {
+    let sql = "UPDATE contacts SET groupId = ? WHERE 1=1";
+    const params: any[] = [targetGroupId];
+
+    if (currentGroupId === 'unassigned') {
+        sql += " AND (groupId IS NULL OR groupId = '')";
+    } else if (currentGroupId) {
+        sql += " AND groupId = ?";
+        params.push(currentGroupId);
+    }
+
+    if (search) {
+        const term = `%${search}%`;
+        sql += " AND (name LIKE ? OR phone LIKE ?)";
+        params.push(term, term);
+    }
+
+    const result = db.prepare(sql).run(...params);
+    return result.changes;
+};

@@ -43,3 +43,17 @@ export const assign = (req: Request, res: Response) => {
         res.status(500).json({ error: 'Error al asignar contactos' });
     }
 };
+
+export const moveAll = (req: Request, res: Response) => {
+    const { targetGroupId, currentGroupId, search } = req.body;
+    try {
+        const affected = groupUtils.moveFilteredToGroup(
+            targetGroupId === 'unassigned' ? null : targetGroupId, 
+            currentGroupId, 
+            search || ''
+        );
+        res.json({ success: true, affected });
+    } catch (error) {
+        res.status(500).json({ error: 'Error en movimiento masivo' });
+    }
+};
