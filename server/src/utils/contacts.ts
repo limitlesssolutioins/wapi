@@ -4,25 +4,39 @@ export interface Contact {
     id: string;
     name: string;
     phone: string;
+    groupId?: string | null;
     created_at?: string;
 }
 
-export const getContacts = (page: number = 1, limit: number = 20, search: string = ''): { data: Contact[], total: number } => {
+export const getContacts = (
+    page: number = 1, 
+    limit: number = 20, 
+    search: string = '', 
+    groupId: string | null | 'unassigned' = 'unassigned'
+): { data: Contact[], total: number } => {
     const offset = (page - 1) * limit;
-    let query = 'SELECT * FROM contacts';
-    let countQuery = 'SELECT COUNT(*) as total FROM contacts';
+    let query = 'SELECT * FROM contacts WHERE 1=1';
+    let countQuery = 'SELECT COUNT(*) as total FROM contacts WHERE 1=1';
     const params: any[] = [];
+
+    if (groupId === 'unassigned') {
+        query += ' AND (groupId IS NULL OR groupId = "")';
+        countQuery += ' AND (groupId IS NULL OR groupId = "")';
+    } else if (groupId) {
+        query += ' AND groupId = ?';
+        countQuery += ' AND groupId = ?';
+        params.push(groupId);
+    }
 
     if (search) {
         const term = `%${search}%`;
-        query += ' WHERE name LIKE ? OR phone LIKE ?';
-        countQuery += ' WHERE name LIKE ? OR phone LIKE ?';
+        query += ' AND (name LIKE ? OR phone LIKE ?)';
+        countQuery += ' AND (name LIKE ? OR phone LIKE ?)';
         params.push(term, term);
     }
 
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     
-    // SQLite limits/offsets need to be at the end
     const stmt = db.prepare(query);
     const data = stmt.all(...params, limit, offset) as Contact[];
 

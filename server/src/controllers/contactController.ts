@@ -5,9 +5,10 @@ export const listContacts = (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const search = (req.query.search as string || '').toLowerCase();
+    const groupId = (req.query.groupId as string) || 'unassigned';
 
-    // The database now handles pagination and search efficiently
-    const { data: paginatedContacts, total } = getContacts(page, limit, search);
+    // The database now handles pagination, search and group filtering
+    const { data: paginatedContacts, total } = getContacts(page, limit, search, groupId);
 
     const totalPages = Math.ceil(total / limit);
 

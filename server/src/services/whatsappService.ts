@@ -22,6 +22,7 @@ interface SessionData {
 
 export class WhatsAppService {
     private sessions: Map<string, SessionData> = new Map();
+    private lidToPn: Map<string, string> = new Map(); // Map to resolve LID to PN
 
     private getSession(sessionId: string): SessionData {
         if (!this.sessions.has(sessionId)) {
@@ -107,6 +108,26 @@ export class WhatsAppService {
             session.socket = socket;
             socket.ev.on('creds.update', saveCreds);
 
+            // Listen for contact updates to map LID to PN
+            socket.ev.on('contacts.upsert', (contacts) => {
+                for (const contact of contacts) {
+                    if (contact.id && contact.id.endsWith('@lid') && contact.id.includes(':')) {
+                        // Some versions provide mapping here
+                    }
+                }
+            });
+
+            socket.ev.on('contacts.update', (updates) => {
+                for (const update of updates) {
+                    if (update.id && update.id.endsWith('@lid') && (update as any).phone) {
+                        const lid = update.id.split('@')[0];
+                        const pn = (update as any).phone;
+                        this.lidToPn.set(lid, pn);
+                        console.log(`[${sessionId}] Mapped LID ${lid} to PN ${pn}`);
+                    }
+                }
+            });
+
             socket.ev.on('connection.update', (update: Partial<ConnectionState>) => {
                 const { connection, lastDisconnect, qr } = update;
 
@@ -142,15 +163,17 @@ export class WhatsAppService {
                 try {
                     if (m.type === 'notify' || m.type === 'append') {
                         for (const msg of m.messages) {
-                            // Extreme cleaning of JID to get only the numeric Phone Number
                             const remoteJid = msg.key.remoteJid || '';
-                            let phone = remoteJid.split('@')[0].split(':')[0];
-                            phone = phone.replace(/\D/g, ''); // Remove all non-numeric characters
+                            let rawId = remoteJid.split('@')[0].split(':')[0];
+                            
+                            // Try to resolve LID to PN using our map
+                            let phone = this.lidToPn.get(rawId) || rawId;
+                            phone = phone.replace(/\D/g, ''); // Ensure only digits
 
                             const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
                             
                             if (text && !remoteJid.includes('@g.us')) {
-                                console.log(`[${sessionId}] Storing message from/to: ${phone}`);
+                                console.log(`[${sessionId}] Storing message from/to: ${phone}${phone !== rawId ? ' (Resolved from LID)' : ''}`);
                                 if (!msg.key.fromMe) {
                                     logMessage({
                                         id: msg.key.id || 'unknown',

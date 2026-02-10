@@ -19,6 +19,14 @@ db.exec(`
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     phone TEXT NOT NULL,
+    groupId TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY(groupId) REFERENCES groups(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
     created_at TEXT DEFAULT (datetime('now'))
   );
 
@@ -98,6 +106,12 @@ try {
     const campaignInfo = db.pragma('table_info(campaigns)') as any[];
     if (!campaignInfo.some(col => col.name === 'imageUrl')) {
         db.exec('ALTER TABLE campaigns ADD COLUMN imageUrl TEXT');
+    }
+
+    // Check contacts for groupId
+    const contactInfoGroup = db.pragma('table_info(contacts)') as any[];
+    if (!contactInfoGroup.some(col => col.name === 'groupId')) {
+        db.exec('ALTER TABLE contacts ADD COLUMN groupId TEXT');
     }
 } catch (error) {
     console.error('Migration failed:', error);

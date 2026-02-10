@@ -39,6 +39,7 @@ import campaignRoutes from './routes/campaignRoutes.js';
 import templateRoutes from './routes/templateRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import groupRoutes from './routes/groupRoutes.js';
 import { protect } from './middleware/authMiddleware.js';
 
 // Import services and utils for stats endpoint
@@ -72,6 +73,7 @@ app.use('/api/auth', authRoutes);
 // Protected API routes - require authentication
 app.use('/api/whatsapp', protect, whatsappRoutes);
 app.use('/api/contacts', protect, contactRoutes);
+app.use('/api/groups', protect, groupRoutes);
 app.use('/api/campaigns', protect, campaignRoutes);
 app.use('/api/templates', protect, templateRoutes);
 app.use('/api/user', protect, userRoutes); 
