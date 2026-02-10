@@ -76,10 +76,6 @@ app.use('/api/campaigns', protect, campaignRoutes);
 app.use('/api/templates', protect, templateRoutes);
 app.use('/api/user', protect, userRoutes); 
 
-// Serve Static Frontend (Vite Build)
-const clientBuildPath = path.join(__dirname, '../../client/dist');
-app.use(express.static(clientBuildPath));
-
 // Stats endpoint
 app.get('/api/stats', protect, (_req, res) => {
     const history = getHistory();

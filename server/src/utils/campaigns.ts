@@ -14,6 +14,7 @@ export interface Campaign {
     sessionIds: string[]; // Stored as JSON in DB
     name: string; // The campaign name
     templateId: string;
+    imageUrl?: string;
     status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED';
     scheduleTime: string | null;
     stats: {
@@ -60,6 +61,7 @@ export const getCampaigns = (page: number = 1, limit: number = 10): { data: Camp
         id: c.id,
         name: c.name,
         templateId: c.templateId,
+        imageUrl: c.imageUrl,
         sessionIds: JSON.parse(c.sessionIds || '[]'), // Ensure sessionIds is parsed here
         status: c.status,
         scheduleTime: c.scheduleTime,
@@ -92,6 +94,7 @@ export const getCampaignById = (id: string): Campaign | undefined => {
         id: campaignRow.id,
         name: campaignRow.name,
         templateId: campaignRow.templateId,
+        imageUrl: campaignRow.imageUrl,
         sessionIds: JSON.parse(campaignRow.sessionIds || '[]'),
         status: campaignRow.status,
         scheduleTime: campaignRow.scheduleTime,
@@ -107,8 +110,8 @@ export const saveCampaign = (campaign: Omit<Campaign, 'id' | 'createdAt' | 'stat
     const now = new Date().toISOString();
 
     const insertCampaign = db.prepare(`
-        INSERT INTO campaigns (id, name, templateId, sessionIds, status, scheduleTime, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO campaigns (id, name, templateId, imageUrl, sessionIds, status, scheduleTime, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertRecipient = db.prepare(`
@@ -121,6 +124,7 @@ export const saveCampaign = (campaign: Omit<Campaign, 'id' | 'createdAt' | 'stat
             id,
             campaign.name,
             campaign.templateId,
+            campaign.imageUrl || null,
             JSON.stringify(campaign.sessionIds),
             campaign.status,
             campaign.scheduleTime,
