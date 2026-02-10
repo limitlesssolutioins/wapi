@@ -80,13 +80,24 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 `);
 
-// MIGRATION: Check if 'name' column exists in contacts (fix for existing DBs)
+// MIGRATION: Check if 'imageUrl' and 'name' columns exist
 try {
-    const tableInfo = db.pragma('table_info(contacts)') as any[];
-    const nameColumnExists = tableInfo.some(col => col.name === 'name');
-    if (!nameColumnExists) {
-        console.log('Migrating: Adding name column to contacts table...');
+    // Check contacts
+    const contactInfo = db.pragma('table_info(contacts)') as any[];
+    if (!contactInfo.some(col => col.name === 'name')) {
         db.exec('ALTER TABLE contacts ADD COLUMN name TEXT DEFAULT ""');
+    }
+
+    // Check templates for imageUrl
+    const templateInfo = db.pragma('table_info(templates)') as any[];
+    if (!templateInfo.some(col => col.name === 'imageUrl')) {
+        db.exec('ALTER TABLE templates ADD COLUMN imageUrl TEXT');
+    }
+
+    // Check campaigns for imageUrl
+    const campaignInfo = db.pragma('table_info(campaigns)') as any[];
+    if (!campaignInfo.some(col => col.name === 'imageUrl')) {
+        db.exec('ALTER TABLE campaigns ADD COLUMN imageUrl TEXT');
     }
 } catch (error) {
     console.error('Migration failed:', error);

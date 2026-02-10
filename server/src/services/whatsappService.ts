@@ -227,7 +227,7 @@ export class WhatsAppService {
         }
     }
 
-    async sendMessage(sessionId: string, phone: string, text: string) {
+    async sendMessage(sessionId: string, phone: string, text: string, imageUrl?: string) {
         const session = this.getSession(sessionId);
         
         if (!session.socket) {
@@ -256,7 +256,16 @@ export class WhatsAppService {
             const jid = result.jid;
             console.log(`[${sessionId}] Sending message to verified JID: ${jid}`);
             
-            const msgResult = await session.socket.sendMessage(jid, { text });
+            let msgResult;
+            if (imageUrl) {
+                msgResult = await session.socket.sendMessage(jid, { 
+                    image: { url: imageUrl },
+                    caption: text
+                });
+            } else {
+                msgResult = await session.socket.sendMessage(jid, { text });
+            }
+
             console.log(`[${sessionId}] Message sent:`, msgResult?.key?.id);
             
             logMessage({

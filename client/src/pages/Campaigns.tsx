@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
-import { Send, Search, CheckCircle, AlertTriangle, Clock, Users, History, Loader2, FileText, Trash2, Plus, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Send, Search, CheckCircle, AlertTriangle, Clock, Users, History, Loader2, FileText, Trash2, Plus, Eye, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 interface Contact {
     id: string;
@@ -55,6 +55,9 @@ export default function Campaigns() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
     const [message, setMessage] = useState('');
+    const [imageUrl, setImageUrl] = useState('');
+    const [uploading, setUploading] = useState(false);
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
     
     // Multi-session selection
     const [availableSessions, setAvailableSessions] = useState<string[]>([]);
@@ -186,18 +189,56 @@ export default function Campaigns() {
         setSelectedIds(new Set());
     };
 
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+            const { data } = await api.post<{ url: string }>('/api/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setImageUrl(data.url);
+        } catch (err) {
+            console.error('Upload failed', err);
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const handleLaunch = async () => {
         if (selectedIds.size === 0 || !message.trim() || selectedSessions.size === 0) return;
         setLaunching(true);
         try {
+            let templateId = selectedTemplateId;
+
+            // If no template is selected or the message has changed from the template
+            // we create a temporary one or ensure we have an ID
+            if (!templateId) {
+                const { data: newTpl } = await api.post<MessageTemplate>('/api/templates', {
+                    name: `Campaña ${new Date().toLocaleDateString()}`,
+                    content: message,
+                    imageUrl: imageUrl.trim() || null
+                });
+                templateId = newTpl.id;
+            }
+
             const { data } = await api.post<Campaign>('/api/campaigns', {
+                name: `Campaña ${new Date().toLocaleString()}`,
+                templateId: templateId,
                 sessionIds: Array.from(selectedSessions),
-                message,
                 contactIds: Array.from(selectedIds),
+                imageUrl: imageUrl.trim() || null
             });
             setActiveCampaign(data);
             setMessage('');
+            setImageUrl('');
+            setSelectedTemplateId(null);
             setSelectedIds(new Set());
+            fetchHistory();
         } catch (err) {
             console.error('Failed to create campaign', err);
         } finally {
@@ -211,6 +252,7 @@ export default function Campaigns() {
             await api.post('/api/templates', {
                 name: templateName.trim(),
                 content: message,
+                imageUrl: imageUrl.trim() || null
             });
             setTemplateName('');
             fetchTemplates();
@@ -230,6 +272,8 @@ export default function Campaigns() {
 
     const handleLoadTemplate = (template: MessageTemplate) => {
         setMessage(template.content);
+        setImageUrl(template.imageUrl || '');
+        setSelectedTemplateId(template.id);
     };
 
     const insertVariable = (variable: string) => {
@@ -457,6 +501,41 @@ export default function Campaigns() {
                             >
                                 {'{{phone}}'}
                             </button>
+                        </div>
+
+                        {/* Image Upload Input */}
+                        <div className="mb-4">
+                            <label className="block text-xs font-medium text-slate-500 mb-2">Imagen de la Campaña (Opcional):</label>
+                            
+                            {imageUrl ? (
+                                <div className="relative inline-block group">
+                                    <img 
+                                        src={imageUrl} 
+                                        alt="Preview" 
+                                        className="h-32 w-48 object-cover rounded-lg border border-slate-200" 
+                                    />
+                                    <button 
+                                        onClick={() => setImageUrl('')}
+                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 transition-colors"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                        {uploading ? (
+                                            <Loader2 size={24} className="text-blue-500 animate-spin" />
+                                        ) : (
+                                            <>
+                                                <Plus size={24} className="text-slate-400 mb-1" />
+                                                <p className="text-xs text-slate-500">Haz clic para adjuntar imagen</p>
+                                            </>
+                                        )}
+                                    </div>
+                                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} disabled={uploading} />
+                                </label>
+                            )}
                         </div>
 
                         <textarea

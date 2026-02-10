@@ -103,7 +103,7 @@ class CampaignQueue {
 
             try {
                 const resolvedMessage = this.resolveVariables(template.content, recipient);
-                await waService.sendMessage(currentSessionId, recipient.phone, resolvedMessage);
+                await waService.sendMessage(currentSessionId, recipient.phone, resolvedMessage, campaign.imageUrl);
                 
                 updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
                 messagesSentOnCurrentSession++;
