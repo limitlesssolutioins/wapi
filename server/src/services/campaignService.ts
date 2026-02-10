@@ -7,7 +7,7 @@ import {
     getPendingRecipients,
     updateRecipientStatus
 } from '../utils/campaigns.js';
-import { getContactById, getAllContacts } from '../utils/contacts.js';
+import { getContactById, getAllContacts, getContacts, Contact } from '../utils/contacts.js';
 import { campaignQueue } from '../queue/campaignQueue.js';
 import { MessageTemplate, getTemplateById } from '../utils/templates.js';
 
@@ -55,10 +55,10 @@ export const createCampaign = (input: CreateCampaignInput): Campaign => {
     }
 
     // 3. Create recipients list
-    const recipients = contactsToProcess.map(c => ({
-        contactId: c!.id,
-        phone: c!.phone,
-        name: c!.name,
+    const recipients = (contactsToProcess as Contact[]).map((c: Contact) => ({
+        contactId: c.id,
+        phone: c.phone,
+        name: c.name,
     }));
 
     // 4. Determine initial status
