@@ -41,9 +41,7 @@ export class WhatsAppService {
     async init() {
         const rootDir = path.resolve(__dirname, '../../');
         try {
-            // First, clear any internal memory state to start fresh
             this.sessions.clear();
-
             const files = fs.readdirSync(rootDir);
             const sessionFolders = files.filter(f => f.startsWith('auth_info_') && fs.statSync(path.join(rootDir, f)).isDirectory());
             
@@ -53,7 +51,6 @@ export class WhatsAppService {
                 console.log(`Found ${sessionFolders.length} existing sessions. Attempting clean reconnection...`);
                 for (const folder of sessionFolders) {
                     const sessionId = folder.replace('auth_info_', '');
-                    // Force a small delay between session reconnections to avoid overwhelming the socket
                     await new Promise(resolve => setTimeout(resolve, 1000));
                     await this.connect(sessionId);
                 }
@@ -66,12 +63,9 @@ export class WhatsAppService {
     async connect(sessionId: string = 'default'): Promise<void> {
         const session = this.getSession(sessionId);
         
-        // If there's an existing socket in any state, terminate it before a new attempt
         if (session.socket) {
             console.log(`[${sessionId}] Cleaning up existing socket before new connection attempt.`);
-            try {
-                session.socket.end(undefined);
-            } catch (e) {}
+            try { session.socket.end(undefined); } catch (e) {}
             session.socket = null;
         }
 
@@ -82,7 +76,6 @@ export class WhatsAppService {
 
         session.status = 'CONNECTING';
         
-        // Timeout safety: Reset if stuck in CONNECTING for too long (60s)
         const connectionTimeout = setTimeout(() => {
             if (session.status === 'CONNECTING') {
                 console.warn(`[${sessionId}] Connection timed out. Resetting status.`);
@@ -92,12 +85,10 @@ export class WhatsAppService {
                     session.socket = null;
                 }
             }
-        }, 60000);
+        }, 120000);
 
         try {
             const authFolder = this.getAuthFolder(sessionId);
-            console.log(`[${sessionId}] Using auth folder: ${authFolder}`);
-            
             const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
             const socket = makeWASocket({
@@ -114,14 +105,13 @@ export class WhatsAppService {
             });
 
             session.socket = socket;
-
             socket.ev.on('creds.update', saveCreds);
 
             socket.ev.on('connection.update', (update: Partial<ConnectionState>) => {
                 const { connection, lastDisconnect, qr } = update;
 
                 if (qr) {
-                    clearTimeout(connectionTimeout); // Clear timeout on activity
+                    clearTimeout(connectionTimeout);
                     session.qrCode = qr;
                     session.status = 'QR_READY';
                     console.log(`[${sessionId}] New QR Code generated`);
@@ -132,17 +122,13 @@ export class WhatsAppService {
                     const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
                     const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
                     
-                    console.log(`[${sessionId}] Connection closed. Status: ${statusCode}, Reconnecting: ${shouldReconnect}`);
-                    
                     if (shouldReconnect) {
                         session.status = 'CONNECTING';
-                        // Re-connect with a slight delay
-                        setTimeout(() => this.connect(sessionId), 2000);
+                        setTimeout(() => this.connect(sessionId), 5000);
                     } else {
                         session.status = 'DISCONNECTED';
                         session.qrCode = null;
                         session.socket = null;
-                        console.log(`[${sessionId}] Session invalidated or logged out.`);
                     }
                 } else if (connection === 'open') {
                     clearTimeout(connectionTimeout);
@@ -152,30 +138,18 @@ export class WhatsAppService {
                 }
             });
 
-            // Listen for incoming messages... (Rest of the code remains the same)
             socket.ev.on('messages.upsert', async (m) => {
                 try {
                     if (m.type === 'notify' || m.type === 'append') {
                         for (const msg of m.messages) {
                             const remoteJid = msg.key.remoteJid || '';
-                            
-                            // Try to get the real phone number (PN) instead of the LID
-                            // Baileys sometimes provides the PN in msg.key.participant or we can extract it if it's the standard format
-                            let phone = remoteJid.split('@')[0];
-                            
-                            // If it's a LID (very long number), we try to find the PN in other fields if available
-                            // But usually, the most reliable way without a full store is to check if it's the right format
-                            if (phone.includes(':')) phone = phone.split(':')[0];
-                            
-                            // Clean non-numeric stuff just in case
-                            phone = phone.replace(/\D/g, '');
+                            let phone = remoteJid.split('@')[0].split(':')[0];
+                            phone = phone.replace(/\D/g, ''); // Clean to numeric only
 
                             const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
                             
-                            if (text && !remoteJid.includes('@g.us')) { 
-                                // Log INCOMING messages from others
+                            if (text && !remoteJid.includes('@g.us')) {
                                 if (!msg.key.fromMe) {
-                                    console.log(`[${sessionId}] Incoming message from ${phone}: ${text}`);
                                     logMessage({
                                         id: msg.key.id || 'unknown',
                                         sessionId,
@@ -184,9 +158,7 @@ export class WhatsAppService {
                                         status: 'RECEIVED',
                                         direction: 'INCOMING'
                                     });
-                                } 
-                                // Optionally log OUTGOING messages sent from other devices (sync)
-                                else if (msg.key.fromMe && m.type === 'notify') {
+                                } else if (msg.key.fromMe && m.type === 'notify') {
                                     logMessage({
                                         id: msg.key.id || 'unknown',
                                         sessionId,
@@ -201,23 +173,6 @@ export class WhatsAppService {
                     }
                 } catch (err) {
                     console.error(`[${sessionId}] Error processing message upsert:`, err);
-                }
-            });
-            
-            // Listen for status updates (Checks)
-            socket.ev.on('messages.update', (updates) => {
-                for (const update of updates) {
-                    if (update.update.status) {
-                        const statusMap = {
-                            1: 'PENDING',
-                            2: 'SERVER_ACK',
-                            3: 'DELIVERY_ACK',
-                            4: 'READ',
-                            0: 'ERROR'
-                        };
-                        const status = statusMap[update.update.status as keyof typeof statusMap] || update.update.status;
-                        console.log(`[${sessionId}] Message Update: ${update.key.id} -> ${status}`);
-                    }
                 }
             });
 
@@ -241,57 +196,35 @@ export class WhatsAppService {
         try {
             const rootDir = path.resolve(__dirname, '../../');
             const files = fs.readdirSync(rootDir);
-            const sessions = files
+            return files
                 .filter(f => f.startsWith('auth_info_') && fs.statSync(path.join(rootDir, f)).isDirectory())
                 .map(f => f.replace('auth_info_', ''));
-            
-            return sessions.length > 0 ? sessions : ['default'];
         } catch (error) {
-            console.error('Error listing sessions:', error);
             return ['default'];
         }
     }
 
     async sendMessage(sessionId: string, phone: string, text: string, imageUrl?: string) {
         const session = this.getSession(sessionId);
-        
         if (!session.socket) {
-            // Try to reconnect if session exists but socket is gone
-            console.warn(`[${sessionId}] Socket not found, attempting quick reconnect...`);
             await this.connect(sessionId);
-            // Wait a bit for connection
             await new Promise(resolve => setTimeout(resolve, 3000));
-            if (!session.socket) {
-                throw new Error(`Session ${sessionId} is disconnected. Please scan QR code.`);
-            }
+            if (!session.socket) throw new Error(`Session ${sessionId} is disconnected.`);
         }
         
-        // Clean phone number: remove non-digits
         const cleanedPhone = phone.replace(/\D/g, '');
-        
-        // Verify number existence on WhatsApp
         try {
             const results = await session.socket.onWhatsApp(cleanedPhone);
-            const result = results?.[0]; // Access safely
-
-            if (!result || !result.exists) {
-                throw new Error(`Number ${cleanedPhone} is not registered on WhatsApp`);
-            }
+            const result = results?.[0];
+            if (!result || !result.exists) throw new Error(`Number ${cleanedPhone} is not registered.`);
             
             const jid = result.jid;
-            console.log(`[${sessionId}] Sending message to verified JID: ${jid}`);
-            
             let msgResult;
             if (imageUrl) {
-                msgResult = await session.socket.sendMessage(jid, { 
-                    image: { url: imageUrl },
-                    caption: text
-                });
+                msgResult = await session.socket.sendMessage(jid, { image: { url: imageUrl }, caption: text });
             } else {
                 msgResult = await session.socket.sendMessage(jid, { text });
             }
-
-            console.log(`[${sessionId}] Message sent:`, msgResult?.key?.id);
             
             logMessage({
                 id: msgResult?.key?.id || 'unknown',
@@ -301,11 +234,8 @@ export class WhatsAppService {
                 status: 'SENT',
                 direction: 'OUTGOING'
             });
-
             return msgResult;
         } catch (error) {
-            console.error(`[${sessionId}] Error sending message:`, error);
-            
             logMessage({
                 id: 'failed',
                 sessionId,
@@ -315,7 +245,6 @@ export class WhatsAppService {
                 direction: 'OUTGOING',
                 error: error instanceof Error ? error.message : String(error)
             });
-
             throw error;
         }
     }
@@ -323,7 +252,6 @@ export class WhatsAppService {
     async disconnect(sessionId: string): Promise<void> {
         const session = this.getSession(sessionId);
         if (session.socket) {
-            console.log(`[${sessionId}] Closing connection gracefully...`);
             session.socket.end(undefined);
             session.socket = null;
         }
@@ -331,61 +259,25 @@ export class WhatsAppService {
     }
 
     async logout(sessionId: string): Promise<void> {
-        try {
-            await this.disconnect(sessionId);
-        } catch (error) {
-            console.warn(`[${sessionId}] Disconnect failed during logout, proceeding to delete files.`);
-        }
-        
+        try { await this.disconnect(sessionId); } catch (e) {}
         const authFolder = this.getAuthFolder(sessionId);
-        console.log(`[${sessionId}] Deleting auth folder: ${authFolder}`);
-        
         try {
-            if (fs.existsSync(authFolder)) {
-                fs.rmSync(authFolder, { recursive: true, force: true });
-            } else {
-                console.log(`[${sessionId}] Auth folder not found, skipping delete.`);
-            }
+            if (fs.existsSync(authFolder)) fs.rmSync(authFolder, { recursive: true, force: true });
             this.sessions.delete(sessionId);
-        } catch (error) {
-            console.error(`[${sessionId}] Error deleting auth folder:`, error);
-        }
+        } catch (error) {}
     }
 
     async renameSession(oldId: string, newId: string): Promise<void> {
         if (oldId === newId) return;
-        
         const oldFolder = this.getAuthFolder(oldId);
         const newFolder = this.getAuthFolder(newId);
-
-        if (fs.existsSync(newFolder)) {
-            throw new Error(`El nombre de sesión "${newId}" ya está en uso.`);
-        }
-
-        // 1. Disconnect current session
+        if (fs.existsSync(newFolder)) throw new Error(`El nombre "${newId}" ya existe.`);
         await this.disconnect(oldId);
-
-        // 2. Rename folder if it exists
         if (fs.existsSync(oldFolder)) {
-            try {
-                // Wait a bit for file locks to release
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                fs.renameSync(oldFolder, newFolder);
-                console.log(`[${oldId}] Folder renamed to ${newId}`);
-            } catch (error) {
-                console.error(`Error renaming folder:`, error);
-                throw new Error('No se pudo renombrar la carpeta de sesión. Asegúrate de que no esté en uso.');
-            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            fs.renameSync(oldFolder, newFolder);
         }
-
-        // 3. Update memory and prevent reconnection
-        const oldSession = this.sessions.get(oldId);
-        if (oldSession) {
-            // Force status to DISCONNECTED to stop any auto-reconnect logic
-            oldSession.status = 'DISCONNECTED';
-            oldSession.socket = null;
-            this.sessions.delete(oldId);
-        }
+        this.sessions.delete(oldId);
     }
     
     getConnectedSessionCount(): number {

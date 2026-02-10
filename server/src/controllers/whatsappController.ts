@@ -114,10 +114,11 @@ export const getConversation = (req: Request, res: Response) => {
 
 export const deleteChat = (req: Request, res: Response) => {
     const { phone } = req.params;
-    const sessionId = req.query.sessionId as string;
+    const sessionId = (req.query.sessionId as string) || 'default';
     
     if (!phone) {
-        return res.status(400).json({ error: 'Phone number is required' });
+        res.status(400).json({ error: 'Phone number is required' });
+        return;
     }
 
     try {
