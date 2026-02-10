@@ -1,4 +1,6 @@
-import { UserPlus, Trash2, Search, Phone, ChevronLeft, ChevronRight, Loader2, Pencil, X, Users, Plus, FolderOpen, MoreVertical, CheckSquare, Square } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { api } from '../services/api';
+import { UserPlus, Trash2, Search, ChevronLeft, ChevronRight, Loader2, Pencil, Users, Plus, FolderOpen, CheckSquare, Square } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Contact {
@@ -108,7 +110,7 @@ export default function Contacts() {
     };
 
     const toggleContactSelection = (id: string) => {
-        setSelectedContactIds(prev => {
+        setSelectedContactIds((prev: Set<string>) => {
             const next = new Set(prev);
             if (next.has(id)) next.delete(id);
             else next.add(id);
@@ -185,12 +187,12 @@ export default function Contacts() {
                         </span>
                         <select 
                             className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white outline-none focus:ring-2 focus:ring-blue-500"
-                            onChange={(e) => assignToGroup(e.target.value || null)}
+                            onChange={(e) => assignToGroup(e.target.value === 'unassigned' ? null : e.target.value)}
                             value=""
                         >
                             <option value="" disabled>Mover a...</option>
                             <option value="unassigned">Sin Grupo</option>
-                            {groups.map(g => (
+                            {groups.map((g: Group) => (
                                 <option key={g.id} value={g.id}>{g.name}</option>
                             ))}
                         </select>
@@ -220,7 +222,7 @@ export default function Contacts() {
                                 {selectedGroupId === 'unassigned' && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />}
                             </button>
 
-                            {groups.map(group => (
+                            {groups.map((group: Group) => (
                                 <button
                                     key={group.id}
                                     onClick={() => { setSelectedGroupId(group.id); setPage(1); }}
@@ -236,7 +238,7 @@ export default function Contacts() {
                                     </span>
                                     <Trash2 
                                         size={14} 
-                                        onClick={(e) => handleDeleteGroup(group.id, e)}
+                                        onClick={(e: React.MouseEvent) => handleDeleteGroup(group.id, e)}
                                         className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-opacity" 
                                     />
                                 </button>
@@ -321,7 +323,7 @@ export default function Contacts() {
                                                     <button 
                                                         onClick={() => {
                                                             if (selectedContactIds.size === contacts.length) setSelectedContactIds(new Set());
-                                                            else setSelectedContactIds(new Set(contacts.map(c => c.id)));
+                                                            else setSelectedContactIds(new Set(contacts.map((c: Contact) => c.id)));
                                                         }}
                                                         className="text-slate-400 hover:text-blue-600"
                                                     >
@@ -342,7 +344,7 @@ export default function Contacts() {
                                                     </td>
                                                 </tr>
                                             ) : (
-                                                contacts.map((contact) => (
+                                                contacts.map((contact: Contact) => (
                                                     <tr key={contact.id} className={`hover:bg-slate-50/80 transition-colors ${selectedContactIds.has(contact.id) ? 'bg-blue-50/30' : ''}`}>
                                                         <td className="px-4 py-3">
                                                             <button 
@@ -381,7 +383,7 @@ export default function Contacts() {
                                     </span>
                                     <div className="flex items-center gap-3">
                                         <button
-                                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                                            onClick={() => setPage((p: number) => Math.max(1, p - 1))}
                                             disabled={page === 1 || loading}
                                             className="p-2 rounded-xl hover:bg-white border border-transparent hover:border-slate-200 disabled:opacity-30 transition-all shadow-sm"
                                         >
@@ -391,7 +393,7 @@ export default function Contacts() {
                                             {page} / {meta.totalPages || 1}
                                         </span>
                                         <button
-                                            onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
+                                            onClick={() => setPage((p: number) => Math.min(meta.totalPages, p + 1))}
                                             disabled={page >= meta.totalPages || loading}
                                             className="p-2 rounded-xl hover:bg-white border border-transparent hover:border-slate-200 disabled:opacity-30 transition-all shadow-sm"
                                         >
