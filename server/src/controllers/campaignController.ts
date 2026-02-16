@@ -38,7 +38,7 @@ export const update = (req: Request, res: Response) => {
     const { name, templateId, imageUrl, sessionIds, scheduleTime } = req.body;
 
     try {
-        updateCampaign(id, { name, templateId, imageUrl, sessionIds, scheduleTime });
+        updateCampaign(id as string, { name, templateId, imageUrl, sessionIds, scheduleTime });
         res.json({ success: true });
     } catch (error) {
         console.error('Campaign update failed:', error);
