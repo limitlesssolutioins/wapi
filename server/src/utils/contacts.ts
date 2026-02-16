@@ -100,6 +100,27 @@ export const deleteContactsBulk = (ids: string[]): void => {
     db.prepare(`DELETE FROM contacts WHERE id IN (${placeholders})`).run(...ids);
 };
 
+export const deleteAllContactsByFilter = (groupId: string | 'unassigned' | null, search: string): number => {
+    let query = 'DELETE FROM contacts WHERE 1=1';
+    const params: any[] = [];
+
+    if (groupId === 'unassigned') {
+        query += " AND (groupId IS NULL OR groupId = '')";
+    } else if (groupId) {
+        query += ' AND groupId = ?';
+        params.push(groupId);
+    }
+
+    if (search) {
+        const term = `%${search}%`;
+        query += ' AND (name LIKE ? OR phone LIKE ?)';
+        params.push(term, term);
+    }
+
+    const result = db.prepare(query).run(...params);
+    return result.changes;
+};
+
 export const updateContact = (id: string, updates: Partial<Omit<Contact, 'id'>>): Contact => {
     const current = getContactById(id);
     if (!current) throw new Error('Contact not found');

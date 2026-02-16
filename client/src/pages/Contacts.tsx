@@ -98,9 +98,29 @@ export default function Contacts() {
 
     const handleDeleteGroup = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm('¿Borrar este grupo? Los contactos no se eliminarán, solo quedarán sin grupo.')) return;
+        
+        // Custom confirmation logic could be complex with browser prompt, let's keep it simple but powerful
+        // We will ask: Delete group only? Or Group + Contacts?
+        // Since window.confirm is binary, let's implement a two-step confirm or just a simple aggressive one.
+        // Let's assume standard behavior: Delete group usually keeps contacts unassigned.
+        // But user ASKED for option to delete contacts.
+        
+        const group = groups.find(g => g.id === id);
+        if (!group) return;
+
+        const deleteContacts = confirm(`¿Quieres eliminar TAMBIÉN los ${group.contactCount} contactos dentro del grupo "${group.name}"?\n\n- ACEPTAR: Eliminar Grupo Y Contactos.\n- CANCELAR: Eliminar SOLO el Grupo (los contactos quedarán 'Sin Grupo').`);
+        
         try {
+            if (deleteContacts) {
+                // First delete contacts
+                await api.post('/api/contacts/delete-all', { groupId: id });
+                toast.success('Contactos del grupo eliminados');
+            }
+            
+            // Then delete group
             await api.delete(`/api/groups/${id}`);
+            toast.success('Grupo eliminado');
+            
             if (selectedGroupId === id) setSelectedGroupId('unassigned');
             fetchGroups();
             fetchContacts();
@@ -170,6 +190,28 @@ export default function Contacts() {
         } catch (error) {
             console.error(error);
             toast.error('Error al eliminar contactos');
+        }
+    };
+
+    const handleDeleteAll = async () => {
+        const total = meta.total;
+        const groupName = selectedGroupId === 'unassigned' ? 'Sin Grupo' : groups.find(g => g.id === selectedGroupId)?.name || 'Este Grupo';
+        const searchMsg = searchTerm ? ` que coinciden con "${searchTerm}"` : '';
+
+        if (!confirm(`PELIGRO: ¿Estás seguro de eliminar TODOS los ${total} contactos de "${groupName}"${searchMsg}? Esta acción es IRREVERSIBLE.`)) return;
+
+        try {
+            const { data } = await api.post('/api/contacts/delete-all', {
+                groupId: selectedGroupId,
+                search: searchTerm
+            });
+            toast.success(`${data.count} contactos eliminados permanentemente`);
+            setSelectedContactIds(new Set());
+            fetchContacts();
+            fetchGroups();
+        } catch (error) {
+            console.error(error);
+            toast.error('Error al eliminar contactos masivamente');
         }
     };
 
@@ -357,6 +399,12 @@ export default function Contacts() {
                                     <option key={g.id} value={g.id}>{g.name}</option>
                                 ))}
                             </select>
+                            <button
+                                onClick={handleDeleteAll}
+                                className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1"
+                            >
+                                <Trash2 size={14} /> Eliminar Todos ({meta.total})
+                            </button>
                         </div>
                     )}
 

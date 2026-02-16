@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { listContacts, createContact, bulkCreate, removeContact, editContact, deleteContactsBatch } from '../controllers/contactController.js';
+import { listContacts, createContact, bulkCreate, removeContact, editContact, deleteContactsBatch, deleteAllContacts } from '../controllers/contactController.js';
 
 const router = Router();
 
 router.get('/', listContacts);
 router.post('/bulk', bulkCreate);
 router.post('/delete-batch', deleteContactsBatch);
+router.post('/delete-all', deleteAllContacts);
 router.post('/', createContact);
 router.put('/:id', editContact);
 router.delete('/:id', removeContact);

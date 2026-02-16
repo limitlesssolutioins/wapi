@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getContacts, addContact, addContactsBulk, deleteContact, deleteContactsBulk, updateContact } from '../utils/contacts.js';
+import { getContacts, addContact, addContactsBulk, deleteContact, deleteContactsBulk, deleteAllContactsByFilter, updateContact } from '../utils/contacts.js';
 
 export const listContacts = (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
@@ -70,6 +70,21 @@ export const deleteContactsBatch = (req: Request, res: Response) => {
         deleteContactsBulk(contactIds);
         res.json({ success: true, count: contactIds.length });
     } catch (error) {
+        res.status(500).json({ error: 'Failed to delete contacts' });
+    }
+};
+
+export const deleteAllContacts = (req: Request, res: Response) => {
+    const { groupId, search } = req.body;
+    
+    // Safety check: require explicit confirmation or parameters
+    // We assume the frontend sends what it intends to delete
+    
+    try {
+        const deletedCount = deleteAllContactsByFilter(groupId, search);
+        res.json({ success: true, count: deletedCount });
+    } catch (error) {
+        console.error('Delete all error:', error);
         res.status(500).json({ error: 'Failed to delete contacts' });
     }
 };
