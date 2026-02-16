@@ -26,9 +26,13 @@ interface CampaignRecipient {
 
 interface Campaign {
     id: string;
-    sessionId: string;
-    message: string;
-    status: 'QUEUED' | 'PROCESSING' | 'COMPLETED';
+    sessionId?: string; // Kept for backward compatibility if needed, but sessionIds is preferred
+    sessionIds?: string[];
+    name?: string;
+    templateId?: string;
+    imageUrl?: string;
+    message?: string;
+    status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED';
     recipients: CampaignRecipient[];
     totalCount: number;
     sentCount: number;
@@ -39,7 +43,8 @@ interface Campaign {
 
 interface CampaignSummary {
     id: string;
-    sessionId: string;
+    sessionId?: string;
+    sessionIds?: string[];
     status: string;
     totalCount: number;
     sentCount: number;
@@ -47,6 +52,8 @@ interface CampaignSummary {
     createdAt: string;
     completedAt?: string;
     messagePreview: string;
+    imageUrl?: string;
+    templateId?: string;
 }
 
 interface MessageTemplate {
@@ -347,7 +354,7 @@ export default function Campaigns() {
             // Restore Sessions
             // Ensure we convert sessionIds to Set and only include available ones
             if (campaign.sessionIds && campaign.sessionIds.length > 0) {
-                 const validSessions = campaign.sessionIds.filter(s => availableSessions.includes(s));
+                 const validSessions = campaign.sessionIds.filter((s: string) => availableSessions.includes(s));
                  if (validSessions.length > 0) {
                      setSelectedSessions(new Set(validSessions));
                  }
