@@ -4,7 +4,11 @@ import { getHistory } from '../utils/logger.js';
 import db from '../db/index.js';
 
 export const getStatus = (req: Request, res: Response) => {
-    const sessionId = (req.query.sessionId as string) || 'default';
+    const sessionId = req.query.sessionId as string;
+    if (!sessionId) {
+        res.status(400).json({ error: 'sessionId is required' });
+        return;
+    }
     const { status, qrCode } = waService.getConnectionStatus(sessionId);
     res.json({
         status,
@@ -18,7 +22,11 @@ export const getSessions = (_req: Request, res: Response) => {
 };
 
 export const initSession = async (req: Request, res: Response) => {
-    const { sessionId = 'default' } = req.body || {};
+    const { sessionId } = req.body || {};
+    if (!sessionId) {
+        res.status(400).json({ error: 'sessionId is required' });
+        return;
+    }
     try {
         await waService.connect(sessionId);
         res.json({ message: `Session ${sessionId} initialization started` });
@@ -28,7 +36,11 @@ export const initSession = async (req: Request, res: Response) => {
 };
 
 export const logoutSession = async (req: Request, res: Response) => {
-    const { sessionId = 'default' } = req.body || {};
+    const { sessionId } = req.body || {};
+    if (!sessionId) {
+        res.status(400).json({ error: 'sessionId is required' });
+        return;
+    }
     try {
         await waService.logout(sessionId);
         res.json({ message: `Session ${sessionId} logged out` });
@@ -52,7 +64,11 @@ export const renameSession = async (req: Request, res: Response) => {
 };
 
 export const sendMessage = async (req: Request, res: Response) => {
-    const { phone, message, sessionId = 'default' } = req.body || {};
+    const { phone, message, sessionId } = req.body || {};
+    if (!sessionId) {
+        res.status(400).json({ error: 'sessionId is required' });
+        return;
+    }
     try {
         await waService.sendMessage(sessionId, phone, message);
         res.json({ success: true });
@@ -114,10 +130,10 @@ export const getConversation = (req: Request, res: Response) => {
 
 export const deleteChat = (req: Request, res: Response) => {
     const { phone } = req.params;
-    const sessionId = (req.query.sessionId as string) || 'default';
+    const sessionId = req.query.sessionId as string;
     
-    if (!phone) {
-        res.status(400).json({ error: 'Phone number is required' });
+    if (!phone || !sessionId) {
+        res.status(400).json({ error: 'Phone number and sessionId are required' });
         return;
     }
 

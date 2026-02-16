@@ -29,7 +29,7 @@ export default function DashboardHome() {
     const [stats, setStats] = useState<Stats | null>(null);
     const [loading, setLoading] = useState(true);
     const [sessions, setSessions] = useState<string[]>([]);
-    const [selectedSession, setSelectedSession] = useState('default');
+    const [selectedSession, setSelectedSession] = useState('');
 
     // Quick send state
     const [phone, setPhone] = useState('');
@@ -51,9 +51,11 @@ export default function DashboardHome() {
         try {
             const { data } = await api.get<string[]>('/api/whatsapp/sessions');
             setSessions(data);
-            // Default to first session if current selection not in list
-            if (data.length > 0 && !data.includes(selectedSession) && selectedSession === 'default') {
+            // Default to first session if current selection not in list or empty
+            if (data.length > 0 && (!selectedSession || !data.includes(selectedSession))) {
                 setSelectedSession(data[0]);
+            } else if (data.length === 0) {
+                setSelectedSession('');
             }
         } catch (err) {
             console.error('Failed to fetch sessions', err);
@@ -205,7 +207,7 @@ export default function DashboardHome() {
                                                 <option key={s} value={s}>{s} {s === 'default' ? '(Principal)' : ''}</option>
                                             ))
                                         ) : (
-                                            <option value="default">Default (Principal)</option>
+                                            <option value="" disabled>No hay sesiones activas</option>
                                         )}
                                     </select>
                                     <button 

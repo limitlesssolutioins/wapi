@@ -61,7 +61,7 @@ export class WhatsAppService {
         }
     }
 
-    async connect(sessionId: string = 'default'): Promise<void> {
+    async connect(sessionId: string): Promise<void> {
         const session = this.getSession(sessionId);
         
         if (session.socket) {
@@ -225,7 +225,7 @@ export class WhatsAppService {
                 .filter(f => f.startsWith('auth_info_') && fs.statSync(path.join(rootDir, f)).isDirectory())
                 .map(f => f.replace('auth_info_', ''));
         } catch (error) {
-            return ['default'];
+            return [];
         }
     }
 

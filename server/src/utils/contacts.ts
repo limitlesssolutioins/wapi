@@ -94,6 +94,12 @@ export const deleteContact = (id: string): void => {
     db.prepare('DELETE FROM contacts WHERE id = ?').run(id);
 };
 
+export const deleteContactsBulk = (ids: string[]): void => {
+    if (ids.length === 0) return;
+    const placeholders = ids.map(() => '?').join(',');
+    db.prepare(`DELETE FROM contacts WHERE id IN (${placeholders})`).run(...ids);
+};
+
 export const updateContact = (id: string, updates: Partial<Omit<Contact, 'id'>>): Contact => {
     const current = getContactById(id);
     if (!current) throw new Error('Contact not found');

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
-import { Send, Search, CheckCircle, AlertTriangle, Clock, Users, History, Loader2, FileText, Trash2, Plus, Eye, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Send, Search, CheckCircle, AlertTriangle, Clock, Users, History, Loader2, FileText, Trash2, Plus, Eye, ChevronLeft, ChevronRight, X, Pencil } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Contact {
     id: string;
@@ -72,7 +73,7 @@ export default function Campaigns() {
     
     // Multi-session selection
     const [availableSessions, setAvailableSessions] = useState<string[]>([]);
-    const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set(['default']));
+    const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
     const [showSessionDropdown, setShowSessionDropdown] = useState(false);
 
     const [launching, setLaunching] = useState(false);
@@ -322,6 +323,55 @@ export default function Campaigns() {
             .replace(/\{\{name\}\}/g, firstSelectedContact.name)
             .replace(/\{\{phone\}\}/g, firstSelectedContact.phone);
     })();
+
+    const handleEditCampaign = async (e: React.MouseEvent, campaignId: string) => {
+        e.stopPropagation();
+        try {
+            const { data: campaign } = await api.get<Campaign>(`/api/campaigns/${campaignId}`);
+            
+            // Restore Template/Message
+            const template = templates.find(t => t.id === campaign.templateId);
+            if (template) {
+                setMessage(template.content);
+                setSelectedTemplateId(template.id);
+            } else {
+                // Template might be deleted
+                toast.error('La plantilla original fue eliminada. El mensaje está vacío.');
+                setMessage('');
+                setSelectedTemplateId(null);
+            }
+
+            // Restore Image
+            setImageUrl(campaign.imageUrl || '');
+            
+            // Restore Sessions
+            // Ensure we convert sessionIds to Set and only include available ones
+            if (campaign.sessionIds && campaign.sessionIds.length > 0) {
+                 const validSessions = campaign.sessionIds.filter(s => availableSessions.includes(s));
+                 if (validSessions.length > 0) {
+                     setSelectedSessions(new Set(validSessions));
+                 }
+            }
+
+            // Restore Contacts (Always Manual Mode)
+            setSelectionMode('manual');
+            setTargetGroupId('');
+            
+            if (campaign.recipients) {
+                const recipientIds = campaign.recipients.map(r => r.contactId).filter(id => id);
+                setSelectedIds(new Set(recipientIds));
+            }
+
+            toast.success('Datos de la campaña cargados en el formulario.');
+            
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        } catch (err) {
+            console.error('Failed to load campaign for editing', err);
+            toast.error('Error al cargar la campaña');
+        }
+    };
 
     const progressPercent = activeCampaign
         ? Math.round(((activeCampaign.sentCount + activeCampaign.failedCount) / activeCampaign.totalCount) * 100)
@@ -776,7 +826,16 @@ export default function Campaigns() {
                                             <span>{c.totalCount} destinatarios</span>
                                             <span className="text-green-600">{c.sentCount} enviados</span>
                                             {c.failedCount > 0 && <span className="text-red-500">{c.failedCount} fallidos</span>}
-                                            <span className="ml-auto">{new Date(c.createdAt).toLocaleString()}</span>
+                                            <div className="ml-auto flex items-center gap-2">
+                                                <span>{new Date(c.createdAt).toLocaleString()}</span>
+                                                <button
+                                                    onClick={(e) => handleEditCampaign(e, c.id)}
+                                                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                                    title="Editar / Reutilizar Campaña"
+                                                >
+                                                    <Pencil size={14} />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))

@@ -10,8 +10,8 @@ interface StatusResponse {
 }
 
 export default function DeviceManager() {
-    const [sessions, setSessions] = useState<string[]>(['default']);
-    const [currentSession, setCurrentSession] = useState('default');
+    const [sessions, setSessions] = useState<string[]>([]);
+    const [currentSession, setCurrentSession] = useState('');
     const [statusData, setStatusData] = useState<StatusResponse>({ status: 'DISCONNECTED', qrCode: null });
     const [loading, setLoading] = useState(false);
     const [newSessionName, setNewSessionName] = useState('');
@@ -24,8 +24,14 @@ export default function DeviceManager() {
         try {
             const { data } = await api.get<string[]>('/api/whatsapp/sessions');
             setSessions(data);
+            if (data.length > 0 && !currentSession) {
+                setCurrentSession(data[0]);
+            } else if (data.length === 0) {
+                setCurrentSession('');
+            }
         } catch (err) {
             console.error(err);
+            setSessions([]);
         }
     };
 
@@ -74,7 +80,7 @@ export default function DeviceManager() {
             await api.post('/api/whatsapp/logout', { sessionId });
             toast.success('Sesión eliminada');
             if (currentSession === sessionId) {
-                setCurrentSession('default');
+                setCurrentSession('');
                 setStatusData({ status: 'DISCONNECTED', qrCode: null });
             }
             fetchSessions();
@@ -103,6 +109,10 @@ export default function DeviceManager() {
     }, []);
 
     useEffect(() => {
+        if (!currentSession) {
+             setStatusData({ status: 'DISCONNECTED', qrCode: null });
+             return;
+        }
         setStatusData({ status: 'DISCONNECTED', qrCode: null }); 
         fetchStatus();
         const interval = setInterval(fetchStatus, 2000);
@@ -203,6 +213,7 @@ export default function DeviceManager() {
 
                 {/* Main Connection Area */}
                 <div className="lg:col-span-3">
+                    {currentSession ? (
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-4">
@@ -268,6 +279,13 @@ export default function DeviceManager() {
                             )}
                         </div>
                     </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-white rounded-xl border border-slate-200 p-12">
+                            <Smartphone size={64} className="mb-4 opacity-50" />
+                            <h3 className="text-xl font-semibold mb-2">Selecciona una sesión</h3>
+                            <p>O crea una nueva para comenzar a conectar dispositivos.</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

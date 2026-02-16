@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getContacts, addContact, addContactsBulk, deleteContact, updateContact } from '../utils/contacts.js';
+import { getContacts, addContact, addContactsBulk, deleteContact, deleteContactsBulk, updateContact } from '../utils/contacts.js';
 
 export const listContacts = (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
@@ -56,6 +56,21 @@ export const bulkCreate = (req: Request, res: Response): void => {
         res.json({ imported: result.imported.length, duplicates: result.duplicates });
     } catch (error) {
         res.status(500).json({ error: 'Failed to bulk create contacts' });
+    }
+};
+
+export const deleteContactsBatch = (req: Request, res: Response) => {
+    const { contactIds } = req.body;
+    if (!Array.isArray(contactIds) || contactIds.length === 0) {
+        res.status(400).json({ error: 'contactIds must be a non-empty array' });
+        return;
+    }
+
+    try {
+        deleteContactsBulk(contactIds);
+        res.json({ success: true, count: contactIds.length });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete contacts' });
     }
 };
 

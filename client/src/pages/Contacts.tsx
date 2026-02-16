@@ -155,6 +155,24 @@ export default function Contacts() {
         }
     };
 
+    const handleBulkDelete = async () => {
+        if (selectedContactIds.size === 0) return;
+        if (!confirm(`¿Estás seguro de eliminar los ${selectedContactIds.size} contactos seleccionados? Esta acción no se puede deshacer.`)) return;
+
+        try {
+            await api.post('/api/contacts/delete-batch', {
+                contactIds: Array.from(selectedContactIds)
+            });
+            toast.success(`${selectedContactIds.size} contactos eliminados`);
+            setSelectedContactIds(new Set());
+            fetchContacts();
+            fetchGroups(); // Update counts
+        } catch (error) {
+            console.error(error);
+            toast.error('Error al eliminar contactos');
+        }
+    };
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -217,6 +235,13 @@ export default function Contacts() {
                                 <option key={g.id} value={g.id}>{g.name}</option>
                             ))}
                         </select>
+                        <button
+                            onClick={handleBulkDelete}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
+                            title="Eliminar seleccionados"
+                        >
+                            <Trash2 size={18} />
+                        </button>
                     </div>
                 )}
             </div>
