@@ -4,6 +4,7 @@ import {
     getCampaignById as getCampaignFromDb, 
     getCampaigns as listCampaignsFromDb,
     updateCampaignStatus,
+    updateCampaignDetails,
     getPendingRecipients,
     updateRecipientStatus
 } from '../utils/campaigns.js';
@@ -83,6 +84,28 @@ export const createCampaign = (input: CreateCampaignInput): Campaign => {
     // (A separate scheduler would handle `scheduleTime`)
 
     return campaign;
+};
+
+export const updateCampaign = (id: string, updates: Partial<CreateCampaignInput>): void => {
+    const campaign = getCampaignFromDb(id);
+    if (!campaign) throw new Error('Campaign not found');
+
+    if (campaign.status !== 'QUEUED' && campaign.status !== 'PAUSED') {
+        throw new Error('Only QUEUED or PAUSED campaigns can be updated.');
+    }
+
+    if (updates.templateId) {
+        const template = getTemplateById(updates.templateId);
+        if (!template) throw new Error('Template not found');
+    }
+
+    updateCampaignDetails(id, {
+        name: updates.name,
+        templateId: updates.templateId,
+        imageUrl: updates.imageUrl,
+        sessionIds: updates.sessionIds,
+        scheduleTime: updates.scheduleTime
+    });
 };
 
 export const getCampaignProgress = (id: string) => {

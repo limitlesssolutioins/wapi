@@ -143,6 +143,21 @@ export const updateCampaignStatus = (id: string, status: Campaign['status']): vo
     db.prepare('UPDATE campaigns SET status = ?, completedAt = ? WHERE id = ?').run(status, completedAt, id);
 };
 
+export const updateCampaignDetails = (id: string, updates: Partial<Pick<Campaign, 'name' | 'templateId' | 'imageUrl' | 'sessionIds' | 'scheduleTime'>>): void => {
+    const sets: string[] = [];
+    const params: any[] = [];
+
+    if (updates.name !== undefined) { sets.push('name = ?'); params.push(updates.name); }
+    if (updates.templateId !== undefined) { sets.push('templateId = ?'); params.push(updates.templateId); }
+    if (updates.imageUrl !== undefined) { sets.push('imageUrl = ?'); params.push(updates.imageUrl); }
+    if (updates.sessionIds !== undefined) { sets.push('sessionIds = ?'); params.push(JSON.stringify(updates.sessionIds)); }
+    if (updates.scheduleTime !== undefined) { sets.push('scheduleTime = ?'); params.push(updates.scheduleTime); }
+
+    if (sets.length === 0) return;
+
+    params.push(id);
+    db.prepare(`UPDATE campaigns SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+};
 
 export const updateRecipientStatus = (
     campaignId: string,

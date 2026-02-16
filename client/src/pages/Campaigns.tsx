@@ -83,6 +83,7 @@ export default function Campaigns() {
     const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
     const [showSessionDropdown, setShowSessionDropdown] = useState(false);
 
+    const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
     const [launching, setLaunching] = useState(false);
 
     const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
@@ -233,7 +234,10 @@ export default function Campaigns() {
 
     const handleLaunch = async () => {
         const hasRecipients = selectionMode === 'manual' ? selectedIds.size > 0 : !!targetGroupId;
-        if (!hasRecipients || !message.trim() || selectedSessions.size === 0) return;
+        // If updating, recipients might not change, but we assume we keep them or we are not updating them
+        // The backend update logic currently doesn't support updating recipients easily.
+        // So for now, we only update content/settings.
+        if ((!editingCampaignId && !hasRecipients) || !message.trim() || selectedSessions.size === 0) return;
         
         setLaunching(true);
         try {
@@ -250,15 +254,27 @@ export default function Campaigns() {
                 templateId = newTpl.id;
             }
 
-            const { data } = await api.post<Campaign>('/api/campaigns', {
-                name: `Campaña ${new Date().toLocaleString()}`,
-                templateId: templateId,
-                sessionIds: Array.from(selectedSessions),
-                contactIds: selectionMode === 'manual' ? Array.from(selectedIds) : [],
-                groupId: selectionMode === 'group' ? targetGroupId : null,
-                imageUrl: imageUrl.trim() || null
-            });
-            setActiveCampaign(data);
+            if (editingCampaignId) {
+                await api.put(`/api/campaigns/${editingCampaignId}`, {
+                    name: `Campaña (Editada) ${new Date().toLocaleString()}`,
+                    templateId: templateId,
+                    sessionIds: Array.from(selectedSessions),
+                    imageUrl: imageUrl.trim() || null
+                });
+                toast.success('Campaña actualizada');
+                setEditingCampaignId(null);
+            } else {
+                const { data } = await api.post<Campaign>('/api/campaigns', {
+                    name: `Campaña ${new Date().toLocaleString()}`,
+                    templateId: templateId,
+                    sessionIds: Array.from(selectedSessions),
+                    contactIds: selectionMode === 'manual' ? Array.from(selectedIds) : [],
+                    groupId: selectionMode === 'group' ? targetGroupId : null,
+                    imageUrl: imageUrl.trim() || null
+                });
+                setActiveCampaign(data);
+            }
+
             setMessage('');
             setImageUrl('');
             setSelectedTemplateId(null);
@@ -266,7 +282,8 @@ export default function Campaigns() {
             setTargetGroupId('');
             fetchHistory();
         } catch (err) {
-            console.error('Failed to create campaign', err);
+            console.error('Failed to create/update campaign', err);
+            toast.error('Error al procesar campaña');
         } finally {
             setLaunching(false);
         }
@@ -369,7 +386,13 @@ export default function Campaigns() {
                 setSelectedIds(new Set(recipientIds));
             }
 
-            toast.success('Datos de la campaña cargados en el formulario.');
+            if (campaign.status === 'QUEUED' || campaign.status === 'PAUSED') {
+                setEditingCampaignId(campaign.id);
+                toast.success('Modo Edición: Puedes modificar esta campaña pendiente.');
+            } else {
+                setEditingCampaignId(null);
+                toast.success('Datos cargados. Se creará una NUEVA campaña (Clonación).');
+            }
             
             // Scroll to top
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -696,21 +719,40 @@ export default function Campaigns() {
                             </div>
                         )}
 
-                        <button
-                            onClick={handleLaunch}
-                            disabled={launching || (selectionMode === 'manual' ? selectedIds.size === 0 : !targetGroupId) || !message.trim()}
-                            className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
-                        >
-                            {launching ? (
-                                <>
-                                    <Loader2 size={16} className="animate-spin" /> Iniciando...
-                                </>
-                            ) : (
-                                <>
-                                    <Send size={16} /> {selectionMode === 'manual' ? `Lanzar Campaña (${selectedIds.size})` : `Lanzar a Grupo (${groups.find(g => g.id === targetGroupId)?.contactCount || 0})`}
-                                </>
+                        <div className="flex gap-2">
+                            {editingCampaignId && (
+                                <button
+                                    onClick={() => {
+                                        setEditingCampaignId(null);
+                                        setMessage('');
+                                        setImageUrl('');
+                                        setSelectedTemplateId(null);
+                                        setSelectedIds(new Set());
+                                    }}
+                                    className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+                                >
+                                    Cancelar Edición
+                                </button>
                             )}
-                        </button>
+                            <button
+                                onClick={handleLaunch}
+                                disabled={launching || (!editingCampaignId && (selectionMode === 'manual' ? selectedIds.size === 0 : !targetGroupId)) || !message.trim()}
+                                className={`flex-1 py-2 px-4 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
+                                    editingCampaignId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'
+                                } disabled:bg-slate-300 disabled:cursor-not-allowed`}
+                            >
+                                {launching ? (
+                                    <>
+                                        <Loader2 size={16} className="animate-spin" /> Procesando...
+                                    </>
+                                ) : (
+                                    <>
+                                        {editingCampaignId ? <Pencil size={16} /> : <Send size={16} />} 
+                                        {editingCampaignId ? 'Actualizar Campaña' : (selectionMode === 'manual' ? `Lanzar Campaña (${selectedIds.size})` : `Lanzar a Grupo (${groups.find(g => g.id === targetGroupId)?.contactCount || 0})`)}
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
