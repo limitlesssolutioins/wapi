@@ -1,4 +1,4 @@
-import db from '../db/index.js';
+﻿import db from '../db/index.js';
 
 export interface SmsCampaignRecipient {
     contactId?: string;
@@ -172,3 +172,4 @@ export const getPendingSmsRecipients = (campaignId: string): SmsCampaignRecipien
         WHERE campaign_id = ? AND status = 'PENDING'
     `).all(campaignId) as SmsCampaignRecipient[];
 };
+

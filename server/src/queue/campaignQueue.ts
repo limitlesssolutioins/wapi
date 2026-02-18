@@ -1,4 +1,4 @@
-import { waService } from '../services/whatsappService.js';
+﻿import { waService } from '../services/whatsappService.js';
 import { getCampaignById, getPendingRecipients, updateCampaignStatus, updateRecipientStatus } from '../utils/campaigns.js';
 import { getTemplateById } from '../utils/templates.js';
 
@@ -259,3 +259,4 @@ class CampaignQueue {
 }
 
 export const campaignQueue = new CampaignQueue();
+

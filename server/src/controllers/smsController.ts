@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+﻿import { Request, Response } from 'express';
 import { createGateway, getSmsGateways, removeGateway, updateGateway } from '../services/smsGatewayService.js';
 import { cancelSmsCampaign, createSmsCampaign, getSmsCampaignProgress, listSmsCampaigns } from '../services/smsCampaignService.js';
 
@@ -104,3 +104,4 @@ export const cancelCampaignController = (req: Request, res: Response) => {
         res.status(400).json({ error: msg });
     }
 };
+

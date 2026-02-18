@@ -1,4 +1,4 @@
-import { createSmsGateway, deleteSmsGateway, getSmsGatewayById, listSmsGateways, SmsGateway, updateSmsGateway } from '../utils/smsGateways.js';
+﻿import { createSmsGateway, deleteSmsGateway, getSmsGatewayById, listSmsGateways, SmsGateway, updateSmsGateway } from '../utils/smsGateways.js';
 
 const parseEnvInt = (value: string | undefined, fallback: number): number => {
     if (!value) return fallback;
@@ -90,3 +90,4 @@ export const sendSmsViaGateway = async (gatewayId: string, phone: string, messag
         clearTimeout(timeout);
     }
 };
+

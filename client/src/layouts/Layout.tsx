@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
+﻿import { Outlet, Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Smartphone, Send, Settings, Menu, Users, Zap, MessageSquare, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -12,12 +12,12 @@ export default function Layout() {
 
     const navItems = [
         { icon: LayoutDashboard, label: 'Inicio', path: '/' },
-        { icon: MessageSquare, label: 'Buzón', path: '/inbox' },
+        { icon: MessageSquare, label: 'BuzÃ³n', path: '/inbox' },
         { icon: Smartphone, label: 'Dispositivos', path: '/devices' },
         { icon: Send, label: 'Campanas', path: '/campaigns' },
         { icon: Send, label: 'SMS', path: '/sms' },
         { icon: Users, label: 'Contactos', path: '/contacts' },
-        { icon: Settings, label: 'Configuración', path: '/settings' },
+        { icon: Settings, label: 'ConfiguraciÃ³n', path: '/settings' },
     ];
 
     return (
@@ -99,7 +99,7 @@ export default function Layout() {
                             "text-sm font-medium truncate transition-opacity duration-200",
                             sidebarOpen ? "opacity-100" : "opacity-0 w-0"
                         )}>
-                            Cerrar Sesión
+                            Cerrar SesiÃ³n
                         </span>
                     </button>
                 </div>
@@ -120,4 +120,5 @@ export default function Layout() {
         </div>
     );
 }
+
 

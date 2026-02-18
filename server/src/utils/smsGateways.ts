@@ -1,4 +1,4 @@
-import db from '../db/index.js';
+﻿import db from '../db/index.js';
 
 export interface SmsGateway {
     id: string;
@@ -67,3 +67,4 @@ export const updateSmsGateway = (
 export const deleteSmsGateway = (id: string): void => {
     db.prepare('DELETE FROM sms_gateways WHERE id = ?').run(id);
 };
+

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+ï»¿import { useEffect, useRef, useState } from 'react';
 import { api } from '../services/api';
 import { AlertTriangle, CheckCircle, Clock, Plus, Send, Smartphone, Trash2, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -189,7 +189,7 @@ export default function SmsCampaigns() {
             setTargetGroupId('');
             fetchHistory();
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'No se pudo lanzar la campaña SMS');
+            toast.error(error.response?.data?.error || 'No se pudo lanzar la campaÃ±a SMS');
         } finally {
             setSending(false);
         }
@@ -198,7 +198,7 @@ export default function SmsCampaigns() {
     const cancelCampaign = async (id: string) => {
         try {
             await api.post(`/api/sms/campaigns/${id}/cancel`);
-            toast.success('Campaña SMS cancelada');
+            toast.success('CampaÃ±a SMS cancelada');
             fetchHistory();
             if (activeCampaign?.id === id) {
                 const { data } = await api.get<SmsCampaign>(`/api/sms/campaigns/${id}`);
@@ -232,7 +232,7 @@ export default function SmsCampaigns() {
                                     <button className="ml-auto text-red-500" onClick={() => deleteGateway(g.id)}><Trash2 size={14} /></button>
                                 </label>
                             ))}
-                            {gateways.length === 0 && <p className="text-xs text-slate-400">Aún no hay gateways.</p>}
+                            {gateways.length === 0 && <p className="text-xs text-slate-400">AÃºn no hay gateways.</p>}
                         </div>
                         <div className="space-y-2">
                             <input value={newGatewayName} onChange={(e) => setNewGatewayName(e.target.value)} placeholder="Nombre gateway" className="w-full px-3 py-2 border rounded text-sm" />
@@ -275,7 +275,7 @@ export default function SmsCampaigns() {
                         <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2"><Send size={16} /> Mensaje SMS</h3>
                         <textarea value={message} onChange={(e) => setMessage(e.target.value)} className="w-full border rounded p-3 h-52" placeholder="Escribe tu mensaje SMS. Variables: {{name}}, {{phone}}" />
                         <button onClick={launchSmsCampaign} disabled={sending} className="w-full mt-3 py-2 rounded bg-blue-600 text-white disabled:bg-slate-300">
-                            {sending ? 'Lanzando...' : 'Lanzar Campaña SMS'}
+                            {sending ? 'Lanzando...' : 'Lanzar CampaÃ±a SMS'}
                         </button>
                     </div>
                 </div>
@@ -331,7 +331,7 @@ export default function SmsCampaigns() {
                                     </div>
                                 </div>
                             ))}
-                            {history.length === 0 && <p className="text-sm text-slate-400">Aún no hay campañas SMS.</p>}
+                            {history.length === 0 && <p className="text-sm text-slate-400">AÃºn no hay campaÃ±as SMS.</p>}
                         </div>
                     </div>
                 </div>
@@ -339,3 +339,4 @@ export default function SmsCampaigns() {
         </div>
     );
 }
+

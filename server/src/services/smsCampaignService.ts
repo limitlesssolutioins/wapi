@@ -1,4 +1,4 @@
-import { getAllContacts, getContactById, getContacts, Contact } from '../utils/contacts.js';
+﻿import { getAllContacts, getContactById, getContacts, Contact } from '../utils/contacts.js';
 import {
     getSmsCampaignById,
     getSmsCampaigns,
@@ -110,3 +110,4 @@ export const recoverSmsCampaigns = () => {
         console.error('Failed to recover SMS campaigns:', error);
     }
 };
+

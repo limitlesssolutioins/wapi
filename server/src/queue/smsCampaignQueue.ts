@@ -1,4 +1,4 @@
-import { getSmsCampaignById, getPendingSmsRecipients, updateSmsCampaignStatus, updateSmsRecipientStatus } from '../utils/smsCampaigns.js';
+﻿import { getSmsCampaignById, getPendingSmsRecipients, updateSmsCampaignStatus, updateSmsRecipientStatus } from '../utils/smsCampaigns.js';
 import { sendSmsViaGateway } from '../services/smsGatewayService.js';
 
 const parseEnvInt = (value: string | undefined, fallback: number): number => {
@@ -214,3 +214,4 @@ class SmsCampaignQueue {
 }
 
 export const smsCampaignQueue = new SmsCampaignQueue();
+
