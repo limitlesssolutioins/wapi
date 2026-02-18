@@ -136,18 +136,17 @@ class CampaignQueue {
 
                 const { recipient, index } = item;
 
-                if (attemptsByWorker > 0) {
-                    const canContinue = await this.sleepWithStatusCheck(campaignId, minDelayMs, maxDelayMs);
-                    if (!canContinue) {
-                        return;
-                    }
+                // Always wait before sending, even on the first attempt.
+                // This prevents an initial burst of messages when the campaign starts.
+                const canContinue = await this.sleepWithStatusCheck(campaignId, minDelayMs, maxDelayMs);
+                if (!canContinue) {
+                    return; // Stop if the campaign was paused or cancelled during the delay.
                 }
 
                 try {
                     const resolvedMessage = this.resolveVariables(template.content, recipient);
                     await waService.sendMessage(sessionId, recipient.phone, resolvedMessage, campaign.imageUrl);
                     updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
-                    attemptsByWorker++;
                     this.bumpSessionMetric(campaignId, sessionId, 'sent');
 
                     console.log(

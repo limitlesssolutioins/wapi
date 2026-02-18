@@ -59,15 +59,20 @@ export const sendSmsViaGateway = async (gatewayId: string, phone: string, messag
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-        const response = await fetch(`${normalizeEndpoint(gateway.endpoint)}/send`, {
+        // Build Basic Auth header from token field (stored as "username:password")
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (gateway.token) {
+            const base64 = Buffer.from(gateway.token).toString('base64');
+            headers['Authorization'] = `Basic ${base64}`;
+        }
+
+        // Android SMS Gateway API format: POST /messages
+        const response = await fetch(`${normalizeEndpoint(gateway.endpoint)}/messages`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(gateway.token ? { Authorization: `Bearer ${gateway.token}`, 'x-api-key': gateway.token } : {}),
-            },
+            headers,
             body: JSON.stringify({
-                to: phone,
                 message,
+                phoneNumbers: [phone],
             }),
             signal: controller.signal,
         });
@@ -75,11 +80,6 @@ export const sendSmsViaGateway = async (gatewayId: string, phone: string, messag
         if (!response.ok) {
             const text = await response.text().catch(() => '');
             throw new Error(`Gateway HTTP ${response.status}${text ? `: ${text}` : ''}`);
-        }
-
-        const payload: any = await response.json().catch(() => ({}));
-        if (payload?.success === false) {
-            throw new Error(payload?.error || 'Gateway rejected SMS.');
         }
     } catch (error) {
         if ((error as any)?.name === 'AbortError') {
