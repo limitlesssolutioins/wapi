@@ -1,28 +1,42 @@
 import { waService } from '../services/whatsappService.js';
-import { getCampaignById, updateCampaignStatus, updateRecipientStatus, Campaign, CampaignRecipient } from '../utils/campaigns.js';
-import { getTemplateById, MessageTemplate } from '../utils/templates.js';
+import { getCampaignById, getPendingRecipients, updateCampaignStatus, updateRecipientStatus } from '../utils/campaigns.js';
+import { getTemplateById } from '../utils/templates.js';
+
+const parseEnvInt = (value: string | undefined, fallback: number): number => {
+    if (!value) return fallback;
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
 
 class CampaignQueue {
     private queue: string[] = [];
+    private queuedIds = new Set<string>();
     private processing = false;
 
     enqueue(campaignId: string): void {
+        if (this.queuedIds.has(campaignId)) {
+            return;
+        }
+
         this.queue.push(campaignId);
+        this.queuedIds.add(campaignId);
+
         if (!this.processing) {
-            this.processNext();
+            void this.processNext();
         }
     }
 
     private async processNext(): Promise<void> {
-        if (this.queue.length === 0) {
-            this.processing = false;
-            return;
+        if (this.processing) return;
+        this.processing = true;
+
+        while (this.queue.length > 0) {
+            const campaignId = this.queue.shift()!;
+            this.queuedIds.delete(campaignId);
+            await this.processCampaign(campaignId);
         }
 
-        this.processing = true;
-        const campaignId = this.queue.shift()!;
-        await this.processCampaign(campaignId);
-        this.processNext();
+        this.processing = false;
     }
 
     private async processCampaign(campaignId: string): Promise<void> {
@@ -32,7 +46,7 @@ class CampaignQueue {
             console.error(`[Campaign ${campaignId}] Error: Campaign not found in database.`);
             return;
         }
-        
+
         const template = getTemplateById(campaign.templateId);
         if (!template) {
             console.error(`[Campaign ${campaignId}] Error: Template ${campaign.templateId} not found.`);
@@ -40,7 +54,6 @@ class CampaignQueue {
             return;
         }
 
-        // Ensure recipients are loaded and the campaign is in a processable state
         if (!campaign.recipients || campaign.recipients.length === 0) {
             console.log(`[Campaign ${campaignId}] No recipients found. Completing.`);
             updateCampaignStatus(campaignId, 'COMPLETED');
@@ -52,77 +65,99 @@ class CampaignQueue {
             return;
         }
 
-        // If campaign is QUEUED, mark as PROCESSING now
         if (campaign.status === 'QUEUED') {
             updateCampaignStatus(campaignId, 'PROCESSING');
             campaign.status = 'PROCESSING';
         }
 
         const sessionIds = campaign.sessionIds;
-            
         if (!sessionIds || sessionIds.length === 0) {
             console.error(`[Campaign ${campaignId}] Error: No sessions assigned.`);
             updateCampaignStatus(campaignId, 'FAILED');
             return;
         }
 
-        let currentSessionIndex = 0;
-        let messagesSentOnCurrentSession = 0;
-        const ROTATION_LIMIT = 15; // Rotar cada 15 mensajes para mayor seguridad
+        const pendingRecipients = campaign.recipients.filter((r) => r.status === 'PENDING');
+        if (pendingRecipients.length === 0) {
+            updateCampaignStatus(campaignId, 'COMPLETED');
+            return;
+        }
 
-        console.log(`[Campaign ${campaignId}] Running: ${campaign.recipients.length} recipients using sessions: [${sessionIds.join(', ')}]`);
+        const minDelayMs = parseEnvInt(process.env.CAMPAIGN_DELAY_MIN_MS, 10000);
+        const maxDelayMs = Math.max(minDelayMs, parseEnvInt(process.env.CAMPAIGN_DELAY_MAX_MS, 20000));
+        const maxParallelSessions = Math.max(1, parseEnvInt(process.env.CAMPAIGN_MAX_PARALLEL_SESSIONS, sessionIds.length));
+        const workerSessionIds = sessionIds.slice(0, Math.min(maxParallelSessions, sessionIds.length));
 
-        for (let i = 0; i < campaign.recipients.length; i++) {
-            const recipient = campaign.recipients[i];
-            
-            // Re-fetch campaign state occasionally to check if it was PAUSED or CANCELLED
-            if (i % 5 === 0) {
-                const currentStatus = getCampaignById(campaignId)?.status;
-                if (currentStatus === 'PAUSED' || currentStatus === 'FAILED') {
-                    console.log(`[Campaign ${campaignId}] Stopping: Status changed to ${currentStatus}`);
+        console.log(
+            `[Campaign ${campaignId}] Running: ${pendingRecipients.length} pending recipients using ${workerSessionIds.length} parallel sessions.`
+        );
+
+        let nextRecipientIndex = 0;
+        const getNextRecipient = () => {
+            if (nextRecipientIndex >= pendingRecipients.length) {
+                return undefined;
+            }
+            const index = nextRecipientIndex++;
+            return { index, recipient: pendingRecipients[index] };
+        };
+
+        const shouldStop = () => {
+            const currentStatus = getCampaignById(campaignId)?.status;
+            return currentStatus === 'PAUSED' || currentStatus === 'FAILED' || currentStatus === 'CANCELLED';
+        };
+
+        const workers = workerSessionIds.map(async (sessionId) => {
+            let sentByWorker = 0;
+
+            while (true) {
+                if (shouldStop()) {
                     return;
                 }
-            }
 
-            if (recipient.status !== 'PENDING') continue;
-
-            // Session Rotation Logic
-            if (messagesSentOnCurrentSession >= ROTATION_LIMIT && sessionIds.length > 1) {
-                messagesSentOnCurrentSession = 0;
-                currentSessionIndex = (currentSessionIndex + 1) % sessionIds.length;
-                console.log(`[Campaign ${campaignId}] Rotated session to: ${sessionIds[currentSessionIndex]}`);
-            }
-            
-            const currentSessionId = sessionIds[currentSessionIndex];
-
-            // Random delay 10-20s (Antiban)
-            if (i > 0) {
-                const delay = Math.floor(Math.random() * 10000) + 10000;
-                await this.sleep(delay);
-            }
-
-            try {
-                const resolvedMessage = this.resolveVariables(template.content, recipient);
-                if (campaign.imageUrl) {
-                    console.log(`[Campaign ${campaignId}] Sending image message to ${recipient.phone}`);
+                const item = getNextRecipient();
+                if (!item) {
+                    return;
                 }
-                await waService.sendMessage(currentSessionId, recipient.phone, resolvedMessage, campaign.imageUrl);
-                
-                updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
-                messagesSentOnCurrentSession++;
-                
-                console.log(`[Campaign ${campaignId}] [${i + 1}/${campaign.recipients.length}] Sent to ${recipient.phone}`);
-            } catch (error) {
-                const errorMsg = error instanceof Error ? error.message : String(error);
-                updateRecipientStatus(campaignId, recipient.contactId, 'FAILED', errorMsg);
-                console.error(`[Campaign ${campaignId}] [${i + 1}/${campaign.recipients.length}] Failed for ${recipient.phone}: ${errorMsg}`);
-                
-                // Si la sesión se desconectó, intentar rotar inmediatamente si hay más sesiones
-                if (errorMsg.includes('disconnected') && sessionIds.length > 1) {
-                    currentSessionIndex = (currentSessionIndex + 1) % sessionIds.length;
-                    console.log(`[Campaign ${campaignId}] Session error, rotating to: ${sessionIds[currentSessionIndex]}`);
+
+                const { recipient, index } = item;
+
+                if (sentByWorker > 0) {
+                    const canContinue = await this.sleepWithStatusCheck(campaignId, minDelayMs, maxDelayMs);
+                    if (!canContinue) {
+                        return;
+                    }
+                }
+
+                try {
+                    const resolvedMessage = this.resolveVariables(template.content, recipient);
+                    await waService.sendMessage(sessionId, recipient.phone, resolvedMessage, campaign.imageUrl);
+                    updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
+                    sentByWorker++;
+
+                    console.log(
+                        `[Campaign ${campaignId}] [${index + 1}/${pendingRecipients.length}] Sent to ${recipient.phone} via ${sessionId}`
+                    );
+                } catch (error) {
+                    const errorMsg = error instanceof Error ? error.message : String(error);
+                    updateRecipientStatus(campaignId, recipient.contactId, 'FAILED', errorMsg);
+                    console.error(
+                        `[Campaign ${campaignId}] [${index + 1}/${pendingRecipients.length}] Failed for ${recipient.phone} via ${sessionId}: ${errorMsg}`
+                    );
                 }
             }
+        });
+
+        await Promise.all(workers);
+
+        const statusAfterWorkers = getCampaignById(campaignId)?.status;
+        if (statusAfterWorkers === 'PAUSED' || statusAfterWorkers === 'FAILED' || statusAfterWorkers === 'CANCELLED') {
+            console.log(`[Campaign ${campaignId}] Stopped with status ${statusAfterWorkers}.`);
+            return;
+        }
+
+        const stillPending = getPendingRecipients(campaignId).length;
+        if (stillPending === 0) {
+            updateCampaignStatus(campaignId, 'COMPLETED');
         }
 
         console.log(`[Campaign ${campaignId}] Finished.`);
@@ -134,8 +169,32 @@ class CampaignQueue {
             .replace(/\{\{phone\}\}/g, recipient.phone);
     }
 
+    private async sleepWithStatusCheck(campaignId: string, minDelayMs: number, maxDelayMs: number): Promise<boolean> {
+        if (maxDelayMs <= 0) return true;
+
+        const targetDelay = minDelayMs >= maxDelayMs
+            ? minDelayMs
+            : Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+
+        const checkEveryMs = 500;
+        let elapsed = 0;
+
+        while (elapsed < targetDelay) {
+            const step = Math.min(checkEveryMs, targetDelay - elapsed);
+            await this.sleep(step);
+            elapsed += step;
+
+            const currentStatus = getCampaignById(campaignId)?.status;
+            if (currentStatus === 'PAUSED' || currentStatus === 'FAILED' || currentStatus === 'CANCELLED') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private sleep(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 }
 

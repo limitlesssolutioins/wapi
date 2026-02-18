@@ -32,7 +32,7 @@ interface Campaign {
     templateId?: string;
     imageUrl?: string;
     message?: string;
-    status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED';
+    status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED' | 'CANCELLED';
     recipients: CampaignRecipient[];
     totalCount: number;
     sentCount: number;
@@ -94,6 +94,10 @@ export default function Campaigns() {
     const [historyMeta, setHistoryMeta] = useState({ total: 0, page: 1, totalPages: 1 });
 
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const isTerminalStatus = (status?: string) =>
+        status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED';
+    const canCancelCampaign = (status?: string) =>
+        status === 'QUEUED' || status === 'PROCESSING';
 
     const [templates, setTemplates] = useState<MessageTemplate[]>([]);
     const [templateName, setTemplateName] = useState('');
@@ -132,12 +136,12 @@ export default function Campaigns() {
 
     // Polling for active campaign
     useEffect(() => {
-        if (activeCampaign && activeCampaign.status !== 'COMPLETED') {
+        if (activeCampaign && !isTerminalStatus(activeCampaign.status)) {
             pollingRef.current = setInterval(async () => {
                 try {
                     const { data } = await api.get<Campaign>(`/api/campaigns/${activeCampaign.id}`);
                     setActiveCampaign(data);
-                    if (data.status === 'COMPLETED') {
+                    if (isTerminalStatus(data.status)) {
                         if (pollingRef.current) clearInterval(pollingRef.current);
                         fetchHistory();
                     }
@@ -400,6 +404,23 @@ export default function Campaigns() {
         } catch (err) {
             console.error('Failed to load campaign for editing', err);
             toast.error('Error al cargar la campaña');
+        }
+    };
+
+    const handleCancelCampaign = async (campaignId: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        try {
+            await api.post(`/api/campaigns/${campaignId}/cancel`);
+            toast.success('Campana cancelada');
+            fetchHistory();
+
+            if (activeCampaign?.id === campaignId) {
+                const { data } = await api.get<Campaign>(`/api/campaigns/${campaignId}`);
+                setActiveCampaign(data);
+            }
+        } catch (err) {
+            console.error('Failed to cancel campaign', err);
+            toast.error('No se pudo cancelar la campana');
         }
     };
 
@@ -773,11 +794,21 @@ export default function Campaigns() {
                                         ? 'bg-green-100 text-green-700'
                                         : activeCampaign.status === 'PROCESSING'
                                             ? 'bg-blue-100 text-blue-700'
-                                            : 'bg-yellow-100 text-yellow-700'
+                                            : activeCampaign.status === 'CANCELLED'
+                                                ? 'bg-red-100 text-red-700'
+                                                : 'bg-yellow-100 text-yellow-700'
                                 }`}>
                                     {activeCampaign.status}
                                 </span>
                             </h3>
+                            {canCancelCampaign(activeCampaign.status) && (
+                                <button
+                                    onClick={() => handleCancelCampaign(activeCampaign.id)}
+                                    className="mb-4 px-3 py-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors text-sm font-medium"
+                                >
+                                    Cancelar campana
+                                </button>
+                            )}
 
                             {/* Progress bar */}
                             <div className="w-full bg-slate-200 rounded-full h-3 mb-3">
@@ -866,7 +897,8 @@ export default function Campaigns() {
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                                                 c.status === 'COMPLETED' ? 'bg-green-100 text-green-700'
                                                     : c.status === 'PROCESSING' ? 'bg-blue-100 text-blue-700'
-                                                        : 'bg-yellow-100 text-yellow-700'
+                                                        : c.status === 'CANCELLED' ? 'bg-red-100 text-red-700'
+                                                            : 'bg-yellow-100 text-yellow-700'
                                             }`}>
                                                 {c.status}
                                             </span>
@@ -884,6 +916,15 @@ export default function Campaigns() {
                                                 >
                                                     <Pencil size={14} />
                                                 </button>
+                                                {canCancelCampaign(c.status) && (
+                                                    <button
+                                                        onClick={(e) => handleCancelCampaign(c.id, e)}
+                                                        className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                                                        title="Cancelar campaña"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createCampaign, getCampaignProgress as getCampaignDetails, listCampaigns, updateCampaign } from '../services/campaignService.js';
+import { cancelCampaign, createCampaign, getCampaignProgress as getCampaignDetails, listCampaigns, updateCampaign } from '../services/campaignService.js';
 
 export const create = (req: Request, res: Response) => {
     const { name, templateId, imageUrl, contactIds, groupId, sessionId, sessionIds, scheduleTime } = req.body;
@@ -71,5 +71,17 @@ export const list = (req: Request, res: Response) => {
     } catch (error) {
         console.error('Failed to list campaigns:', error);
         res.status(500).json({ error: 'Failed to retrieve campaigns' });
+    }
+};
+
+export const cancel = (req: Request, res: Response) => {
+    const { id } = req.params;
+    try {
+        const campaign = cancelCampaign(id as string);
+        res.json(campaign);
+    } catch (error) {
+        console.error('Campaign cancellation failed:', error);
+        const msg = error instanceof Error ? error.message : 'An unknown error occurred';
+        res.status(400).json({ error: msg });
     }
 };

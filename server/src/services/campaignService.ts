@@ -4,13 +4,11 @@ import {
     getCampaignById as getCampaignFromDb, 
     getCampaigns as listCampaignsFromDb,
     updateCampaignStatus,
-    updateCampaignDetails,
-    getPendingRecipients,
-    updateRecipientStatus
+    updateCampaignDetails
 } from '../utils/campaigns.js';
 import { getContactById, getAllContacts, getContacts, Contact } from '../utils/contacts.js';
 import { campaignQueue } from '../queue/campaignQueue.js';
-import { MessageTemplate, getTemplateById } from '../utils/templates.js';
+import { getTemplateById } from '../utils/templates.js';
 
 interface CreateCampaignInput {
     name: string;
@@ -21,13 +19,6 @@ interface CreateCampaignInput {
     sessionIds: string[];
     scheduleTime: string | null;
 }
-
-// Function to resolve variables in the message
-const resolveMessage = (template: MessageTemplate, contact: { name: string, phone: string }): string => {
-    return template.content
-        .replace(/\{\{name\}\}/g, contact.name)
-        .replace(/\{\{phone\}\}/g, contact.phone);
-};
 
 export const createCampaign = (input: CreateCampaignInput): Campaign => {
     const { name, templateId, imageUrl, contactIds, groupId, sessionIds, scheduleTime } = input;
@@ -110,6 +101,20 @@ export const updateCampaign = (id: string, updates: Partial<CreateCampaignInput>
 
 export const getCampaignProgress = (id: string) => {
     return getCampaignFromDb(id);
+};
+
+export const cancelCampaign = (id: string): Campaign => {
+    const campaign = getCampaignFromDb(id);
+    if (!campaign) {
+        throw new Error('Campaign not found');
+    }
+
+    if (campaign.status === 'COMPLETED' || campaign.status === 'FAILED' || campaign.status === 'CANCELLED') {
+        throw new Error(`Campaign cannot be cancelled from status ${campaign.status}.`);
+    }
+
+    updateCampaignStatus(id, 'CANCELLED');
+    return getCampaignFromDb(id)!;
 };
 
 export const listCampaigns = (page: number, limit: number) => {

@@ -15,7 +15,7 @@ export interface Campaign {
     name: string; // The campaign name
     templateId: string;
     imageUrl?: string;
-    status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED';
+    status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED' | 'CANCELLED';
     scheduleTime: string | null;
     stats: {
         total: number;
@@ -139,7 +139,7 @@ export const saveCampaign = (campaign: Omit<Campaign, 'id' | 'createdAt' | 'stat
 };
 
 export const updateCampaignStatus = (id: string, status: Campaign['status']): void => {
-    const completedAt = (status === 'COMPLETED' || status === 'FAILED') ? new Date().toISOString() : null;
+    const completedAt = (status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED') ? new Date().toISOString() : null;
     db.prepare('UPDATE campaigns SET status = ?, completedAt = ? WHERE id = ?').run(status, completedAt, id);
 };
 
