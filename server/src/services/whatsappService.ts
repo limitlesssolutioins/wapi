@@ -45,7 +45,8 @@ export class WhatsAppService {
         if (!sessionId) return false;
         const normalized = sessionId.trim().toLowerCase();
         if (normalized === 'default') return false;
-        return /^[a-z0-9][a-z0-9 _-]{0,49}$/.test(normalized);
+        if (normalized.length > 80) return false;
+        return normalized.length > 0;
     }
 
     private getAuthFolder(sessionId: string): string {
@@ -245,10 +246,15 @@ export class WhatsAppService {
         try {
             const rootDir = path.resolve(__dirname, '../../');
             const files = fs.readdirSync(rootDir);
-            return files
+            const fromDisk = files
                 .filter(f => f.startsWith('auth_info_') && fs.statSync(path.join(rootDir, f)).isDirectory())
                 .map(f => f.replace('auth_info_', ''))
                 .filter(sessionId => this.isValidSessionId(sessionId));
+
+            const fromMemory = Array.from(this.sessions.keys())
+                .filter(sessionId => this.isValidSessionId(sessionId));
+
+            return Array.from(new Set([...fromDisk, ...fromMemory])).sort();
         } catch (error) {
             return [];
         }
