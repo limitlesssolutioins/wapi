@@ -62,9 +62,7 @@ export default function SmsCampaigns() {
     const [activeCampaign, setActiveCampaign] = useState<SmsCampaign | null>(null);
 
     const [newGatewayName, setNewGatewayName] = useState('');
-    const [newGatewayEndpoint, setNewGatewayEndpoint] = useState('');
-    const [newGatewayUser, setNewGatewayUser] = useState('');
-    const [newGatewayPass, setNewGatewayPass] = useState('');
+    const [newGatewayApiKey, setNewGatewayApiKey] = useState('');
 
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -142,21 +140,16 @@ export default function SmsCampaigns() {
     };
 
     const createGateway = async () => {
-        if (!newGatewayName.trim() || !newGatewayEndpoint.trim()) return;
-        const token = newGatewayUser.trim() && newGatewayPass.trim()
-            ? `${newGatewayUser.trim()}:${newGatewayPass.trim()}`
-            : null;
+        if (!newGatewayName.trim() || !newGatewayApiKey.trim()) return;
         try {
             await api.post('/api/sms/gateways', {
                 name: newGatewayName.trim(),
-                endpoint: newGatewayEndpoint.trim(),
-                token,
+                endpoint: 'https://api.smsmobileapi.com/sendsms/',
+                token: newGatewayApiKey.trim(),
                 isActive: true,
             });
             setNewGatewayName('');
-            setNewGatewayEndpoint('');
-            setNewGatewayUser('');
-            setNewGatewayPass('');
+            setNewGatewayApiKey('');
             toast.success('Gateway SMS creado');
             fetchGateways();
         } catch (error: any) {
@@ -241,13 +234,9 @@ export default function SmsCampaigns() {
                         </div>
                         <div className="space-y-2">
                             <input value={newGatewayName} onChange={(e) => setNewGatewayName(e.target.value)} placeholder="Nombre (ej: Mi Android)" className="w-full px-3 py-2 border rounded text-sm" />
-                            <input value={newGatewayEndpoint} onChange={(e) => setNewGatewayEndpoint(e.target.value)} placeholder="Endpoint (ej: http://192.168.1.100:8080)" className="w-full px-3 py-2 border rounded text-sm" />
-                            <div className="grid grid-cols-2 gap-2">
-                                <input value={newGatewayUser} onChange={(e) => setNewGatewayUser(e.target.value)} placeholder="Usuario" className="w-full px-3 py-2 border rounded text-sm" />
-                                <input type="password" value={newGatewayPass} onChange={(e) => setNewGatewayPass(e.target.value)} placeholder="Contraseña" className="w-full px-3 py-2 border rounded text-sm" />
-                            </div>
-                            <p className="text-xs text-slate-400">Credenciales de la app SMS Gateway en tu Android</p>
-                            <button onClick={createGateway} className="w-full py-2 rounded bg-slate-900 text-white text-sm flex items-center justify-center gap-2"><Plus size={14} /> Agregar Gateway</button>
+                            <input value={newGatewayApiKey} onChange={(e) => setNewGatewayApiKey(e.target.value)} placeholder="API Key de SMSMobileAPI" className="w-full px-3 py-2 border rounded text-sm" />
+                            <p className="text-xs text-slate-400">Pega el API Key de la app SMSMobileAPI en tu Android</p>
+                            <button onClick={createGateway} disabled={!newGatewayName.trim() || !newGatewayApiKey.trim()} className="w-full py-2 rounded bg-slate-900 text-white text-sm flex items-center justify-center gap-2 disabled:opacity-50"><Plus size={14} /> Agregar Gateway</button>
                         </div>
                     </div>
 

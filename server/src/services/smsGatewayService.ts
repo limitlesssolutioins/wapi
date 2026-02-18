@@ -53,33 +53,37 @@ export const sendSmsViaGateway = async (gatewayId: string, phone: string, messag
     const gateway = getSmsGatewayById(gatewayId);
     if (!gateway) throw new Error(`Gateway ${gatewayId} not found.`);
     if (!gateway.isActive) throw new Error(`Gateway ${gateway.name} is inactive.`);
+    if (!gateway.token) throw new Error(`Gateway ${gateway.name} has no API key configured.`);
 
     const timeoutMs = parseEnvInt(process.env.SMS_GATEWAY_TIMEOUT_MS, 15000);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-        // Build Basic Auth header from token field (stored as "username:password")
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (gateway.token) {
-            const base64 = Buffer.from(gateway.token).toString('base64');
-            headers['Authorization'] = `Basic ${base64}`;
-        }
+        // SMSMobileAPI format: POST with form params
+        const params = new URLSearchParams({
+            apikey: gateway.token,
+            recipients: phone,
+            message,
+            sendsms: '1',
+        });
 
-        // Android SMS Gateway API format: POST /messages
-        const response = await fetch(`${normalizeEndpoint(gateway.endpoint)}/messages`, {
+        const response = await fetch('https://api.smsmobileapi.com/sendsms/', {
             method: 'POST',
-            headers,
-            body: JSON.stringify({
-                message,
-                phoneNumbers: [phone],
-            }),
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString(),
             signal: controller.signal,
         });
 
         if (!response.ok) {
             const text = await response.text().catch(() => '');
             throw new Error(`Gateway HTTP ${response.status}${text ? `: ${text}` : ''}`);
+        }
+
+        const text = await response.text().catch(() => '');
+        // Check for error responses from SMSMobileAPI
+        if (text.toLowerCase().includes('error')) {
+            throw new Error(`SMSMobileAPI: ${text}`);
         }
     } catch (error) {
         if ((error as any)?.name === 'AbortError') {
