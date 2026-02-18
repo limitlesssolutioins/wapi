@@ -40,6 +40,7 @@ import templateRoutes from './routes/templateRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
+import smsRoutes from './routes/smsRoutes.js';
 import { protect } from './middleware/authMiddleware.js';
 
 // Import services and utils for stats endpoint
@@ -77,6 +78,7 @@ app.use('/api/groups', protect, groupRoutes);
 app.use('/api/campaigns', protect, campaignRoutes);
 app.use('/api/templates', protect, templateRoutes);
 app.use('/api/user', protect, userRoutes); 
+app.use('/api/sms', protect, smsRoutes);
 
 // Stats endpoint
 app.get('/api/stats', protect, (_req, res) => {
@@ -128,6 +130,9 @@ const server = app.listen(PORT, async () => {
     // Recover pending campaigns
     import('./services/campaignService.js').then(({ recoverCampaigns }) => {
         recoverCampaigns();
+    });
+    import('./services/smsCampaignService.js').then(({ recoverSmsCampaigns }) => {
+        recoverSmsCampaigns();
     });
 });
 

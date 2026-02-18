@@ -3,6 +3,7 @@ import Layout from './layouts/Layout';
 import DashboardHome from './pages/DashboardHome';
 import DeviceManager from './pages/DeviceManager';
 import Campaigns from './pages/Campaigns';
+import SmsCampaigns from './pages/SmsCampaigns';
 import Contacts from './pages/Contacts';
 import Settings from './pages/Settings';
 import Inbox from './pages/Inbox';
@@ -29,6 +30,7 @@ const AppWrapper = () => {
         <Route path="inbox" element={<Inbox />} />
         <Route path="devices" element={<DeviceManager />} />
         <Route path="campaigns" element={<Campaigns />} />
+        <Route path="sms" element={<SmsCampaigns />} />
         <Route path="contacts" element={<Contacts />} />
         <Route path="settings" element={<Settings />} />
       </Route>

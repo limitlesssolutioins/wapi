@@ -14,7 +14,8 @@ export default function Layout() {
         { icon: LayoutDashboard, label: 'Inicio', path: '/' },
         { icon: MessageSquare, label: 'Buzón', path: '/inbox' },
         { icon: Smartphone, label: 'Dispositivos', path: '/devices' },
-        { icon: Send, label: 'Campañas', path: '/campaigns' },
+        { icon: Send, label: 'Campanas', path: '/campaigns' },
+        { icon: Send, label: 'SMS', path: '/sms' },
         { icon: Users, label: 'Contactos', path: '/contacts' },
         { icon: Settings, label: 'Configuración', path: '/settings' },
     ];
@@ -119,3 +120,4 @@ export default function Layout() {
         </div>
     );
 }
+

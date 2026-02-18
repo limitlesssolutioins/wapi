@@ -77,6 +77,40 @@ db.exec(`
     username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS sms_gateways (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    endpoint TEXT NOT NULL,
+    token TEXT,
+    isActive INTEGER DEFAULT 1,
+    createdAt TEXT DEFAULT (datetime('now')),
+    updatedAt TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS sms_campaigns (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    message TEXT NOT NULL,
+    gatewayIds TEXT NOT NULL, -- JSON array of gateway IDs
+    status TEXT NOT NULL, -- QUEUED, PROCESSING, COMPLETED, FAILED, CANCELLED
+    scheduleTime TEXT,
+    createdAt TEXT DEFAULT (datetime('now')),
+    completedAt TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS sms_campaign_recipients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id TEXT NOT NULL,
+    contactId TEXT,
+    phone TEXT NOT NULL,
+    name TEXT,
+    gatewayId TEXT,
+    status TEXT DEFAULT 'PENDING', -- PENDING, SENT, FAILED
+    error TEXT,
+    sentAt TEXT,
+    FOREIGN KEY(campaign_id) REFERENCES sms_campaigns(id) ON DELETE CASCADE
+  );
   
   -- Create indexes for performance
   CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts(phone);
@@ -86,6 +120,10 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_messages_phone ON messages(phone);
   CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
   CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+  CREATE INDEX IF NOT EXISTS idx_sms_campaigns_status ON sms_campaigns(status);
+  CREATE INDEX IF NOT EXISTS idx_sms_campaign_recipients_campaign_id ON sms_campaign_recipients(campaign_id);
+  CREATE INDEX IF NOT EXISTS idx_sms_campaign_recipients_status ON sms_campaign_recipients(status);
+  CREATE INDEX IF NOT EXISTS idx_sms_gateways_name ON sms_gateways(name);
 `);
 
 // MIGRATION: Check if 'imageUrl' and 'name' columns exist
