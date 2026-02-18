@@ -362,7 +362,8 @@ export class WhatsAppService {
     
     getConnectedSessionCount(): number {
         let count = 0;
-        for (const session of this.sessions.values()) {
+        for (const [sessionId, session] of this.sessions.entries()) {
+            if (!this.isValidSessionId(sessionId)) continue;
             if (session.status === 'CONNECTED') count++;
         }
         return count;

@@ -24,7 +24,7 @@ interface CreateCampaignInput {
 export const createCampaign = (input: CreateCampaignInput): Campaign => {
     const { name, templateId, imageUrl, contactIds, groupId, sessionIds, scheduleTime } = input;
     const sanitizedSessionIds = (sessionIds || [])
-        .map((s) => (s || '').trim().toLowerCase())
+        .map((s) => (s || '').trim())
         .filter((s) => waService.isValidSessionId(s));
     
     // 1. Validate Template
@@ -99,7 +99,7 @@ export const updateCampaign = (id: string, updates: Partial<CreateCampaignInput>
     }
 
     const sanitizedSessionIds = updates.sessionIds
-        ? updates.sessionIds.map((s) => (s || '').trim().toLowerCase()).filter((s) => waService.isValidSessionId(s))
+        ? updates.sessionIds.map((s) => (s || '').trim()).filter((s) => waService.isValidSessionId(s))
         : undefined;
 
     if (updates.sessionIds && (!sanitizedSessionIds || sanitizedSessionIds.length === 0)) {

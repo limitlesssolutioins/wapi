@@ -4,7 +4,7 @@ import { getHistory } from '../utils/logger.js';
 import db from '../db/index.js';
 
 export const getStatus = (req: Request, res: Response) => {
-    const sessionId = (req.query.sessionId as string || '').trim().toLowerCase();
+    const sessionId = (req.query.sessionId as string || '').trim();
     if (!sessionId) {
         res.status(400).json({ error: 'sessionId is required' });
         return;
@@ -26,7 +26,7 @@ export const getSessions = (_req: Request, res: Response) => {
 };
 
 export const initSession = async (req: Request, res: Response) => {
-    const sessionId = (req.body?.sessionId || '').trim().toLowerCase();
+    const sessionId = (req.body?.sessionId || '').trim();
     if (!sessionId) {
         res.status(400).json({ error: 'sessionId is required' });
         return;
@@ -44,7 +44,7 @@ export const initSession = async (req: Request, res: Response) => {
 };
 
 export const logoutSession = async (req: Request, res: Response) => {
-    const sessionId = (req.body?.sessionId || '').trim().toLowerCase();
+    const sessionId = (req.body?.sessionId || '').trim();
     if (!sessionId) {
         res.status(400).json({ error: 'sessionId is required' });
         return;
@@ -62,7 +62,7 @@ export const logoutSession = async (req: Request, res: Response) => {
 };
 
 export const resetSession = async (req: Request, res: Response) => {
-    const sessionId = (req.body?.sessionId || '').trim().toLowerCase();
+    const sessionId = (req.body?.sessionId || '').trim();
     if (!sessionId) {
         res.status(400).json({ error: 'sessionId is required' });
         return;
@@ -80,8 +80,8 @@ export const resetSession = async (req: Request, res: Response) => {
 };
 
 export const renameSession = async (req: Request, res: Response) => {
-    const oldId = (req.body?.oldId || '').trim().toLowerCase();
-    const newId = (req.body?.newId || '').trim().toLowerCase();
+    const oldId = (req.body?.oldId || '').trim();
+    const newId = (req.body?.newId || '').trim();
     if (!oldId || !newId) {
         res.status(400).json({ error: 'oldId and newId are required' });
         return;
@@ -100,7 +100,7 @@ export const renameSession = async (req: Request, res: Response) => {
 
 export const sendMessage = async (req: Request, res: Response) => {
     const { phone, message } = req.body || {};
-    const sessionId = (req.body?.sessionId || '').trim().toLowerCase();
+    const sessionId = (req.body?.sessionId || '').trim();
     if (!sessionId) {
         res.status(400).json({ error: 'sessionId is required' });
         return;
