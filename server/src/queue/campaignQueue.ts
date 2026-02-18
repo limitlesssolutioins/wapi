@@ -12,6 +12,12 @@ class CampaignQueue {
     private queue: string[] = [];
     private queuedIds = new Set<string>();
     private processing = false;
+    private runtimeByCampaign = new Map<string, Record<string, {
+        sent: number;
+        failed: number;
+        lastError?: string;
+        lastActivityAt?: string;
+    }>>();
 
     enqueue(campaignId: string): void {
         if (this.queuedIds.has(campaignId)) {
@@ -87,6 +93,7 @@ class CampaignQueue {
         const maxDelayMs = Math.max(minDelayMs, parseEnvInt(process.env.CAMPAIGN_DELAY_MAX_MS, 20000));
         const maxParallelSessions = Math.max(1, parseEnvInt(process.env.CAMPAIGN_MAX_PARALLEL_SESSIONS, sessionIds.length));
         const workerSessionIds = sessionIds.slice(0, Math.min(maxParallelSessions, sessionIds.length));
+        this.initializeRuntimeMetrics(campaignId, workerSessionIds);
 
         console.log(
             `[Campaign ${campaignId}] Running: ${pendingRecipients.length} pending recipients using ${workerSessionIds.length} parallel sessions.`
@@ -133,6 +140,7 @@ class CampaignQueue {
                     await waService.sendMessage(sessionId, recipient.phone, resolvedMessage, campaign.imageUrl);
                     updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
                     attemptsByWorker++;
+                    this.bumpSessionMetric(campaignId, sessionId, 'sent');
 
                     console.log(
                         `[Campaign ${campaignId}] [${index + 1}/${pendingRecipients.length}] Sent to ${recipient.phone} via ${sessionId}`
@@ -141,6 +149,7 @@ class CampaignQueue {
                     const errorMsg = error instanceof Error ? error.message : String(error);
                     updateRecipientStatus(campaignId, recipient.contactId, 'FAILED', errorMsg);
                     attemptsByWorker++;
+                    this.bumpSessionMetric(campaignId, sessionId, 'failed', errorMsg);
                     console.error(
                         `[Campaign ${campaignId}] [${index + 1}/${pendingRecipients.length}] Failed for ${recipient.phone} via ${sessionId}: ${errorMsg}`
                     );
@@ -196,6 +205,43 @@ class CampaignQueue {
 
     private sleep(ms: number): Promise<void> {
         return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    getRuntimeMetrics(campaignId: string): Record<string, {
+        sent: number;
+        failed: number;
+        lastError?: string;
+        lastActivityAt?: string;
+    }> | undefined {
+        return this.runtimeByCampaign.get(campaignId);
+    }
+
+    private initializeRuntimeMetrics(campaignId: string, sessionIds: string[]): void {
+        const existing = this.runtimeByCampaign.get(campaignId) ?? {};
+        for (const sessionId of sessionIds) {
+            if (!existing[sessionId]) {
+                existing[sessionId] = {
+                    sent: 0,
+                    failed: 0
+                };
+            }
+        }
+        this.runtimeByCampaign.set(campaignId, existing);
+    }
+
+    private bumpSessionMetric(campaignId: string, sessionId: string, type: 'sent' | 'failed', lastError?: string): void {
+        const metrics = this.runtimeByCampaign.get(campaignId) ?? {};
+        if (!metrics[sessionId]) {
+            metrics[sessionId] = { sent: 0, failed: 0 };
+        }
+
+        metrics[sessionId][type] += 1;
+        metrics[sessionId].lastActivityAt = new Date().toISOString();
+        if (type === 'failed') {
+            metrics[sessionId].lastError = lastError;
+        }
+
+        this.runtimeByCampaign.set(campaignId, metrics);
     }
 }
 

@@ -34,9 +34,21 @@ interface Campaign {
     message?: string;
     status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED' | 'CANCELLED';
     recipients: CampaignRecipient[];
-    totalCount: number;
-    sentCount: number;
-    failedCount: number;
+    totalCount?: number;
+    sentCount?: number;
+    failedCount?: number;
+    stats?: {
+        total: number;
+        sent: number;
+        failed: number;
+        pending: number;
+    };
+    runtimeBySession?: Record<string, {
+        sent: number;
+        failed: number;
+        lastError?: string;
+        lastActivityAt?: string;
+    }>;
     createdAt: string;
     completedAt?: string;
 }
@@ -424,8 +436,21 @@ export default function Campaigns() {
         }
     };
 
+    const getCampaignTotals = (campaign: Campaign | null) => {
+        if (!campaign) return { total: 0, sent: 0, failed: 0, pending: 0 };
+
+        const total = campaign.stats?.total ?? campaign.totalCount ?? campaign.recipients?.length ?? 0;
+        const sent = campaign.stats?.sent ?? campaign.sentCount ?? campaign.recipients?.filter(r => r.status === 'SENT').length ?? 0;
+        const failed = campaign.stats?.failed ?? campaign.failedCount ?? campaign.recipients?.filter(r => r.status === 'FAILED').length ?? 0;
+        const pending = Math.max(0, total - sent - failed);
+
+        return { total, sent, failed, pending };
+    };
+
+    const totals = getCampaignTotals(activeCampaign);
+
     const progressPercent = activeCampaign
-        ? Math.round(((activeCampaign.sentCount + activeCampaign.failedCount) / activeCampaign.totalCount) * 100)
+        ? Math.round(((totals.sent + totals.failed) / Math.max(1, totals.total)) * 100)
         : 0;
 
     return (
@@ -821,15 +846,42 @@ export default function Campaigns() {
                             {/* Counters */}
                             <div className="flex gap-4 mb-4 text-sm">
                                 <span className="flex items-center gap-1 text-green-600">
-                                    <CheckCircle size={14} /> {activeCampaign.sentCount} enviados
+                                    <CheckCircle size={14} /> {totals.sent} enviados
                                 </span>
                                 <span className="flex items-center gap-1 text-red-500">
-                                    <AlertTriangle size={14} /> {activeCampaign.failedCount} fallidos
+                                    <AlertTriangle size={14} /> {totals.failed} fallidos
                                 </span>
                                 <span className="flex items-center gap-1 text-slate-500">
-                                    <Clock size={14} /> {activeCampaign.totalCount - activeCampaign.sentCount - activeCampaign.failedCount} pendientes
+                                    <Clock size={14} /> {totals.pending} pendientes
                                 </span>
                             </div>
+
+                            {activeCampaign.runtimeBySession && Object.keys(activeCampaign.runtimeBySession).length > 0 && (
+                                <div className="mb-4 border border-slate-200 rounded-lg overflow-hidden">
+                                    <div className="px-3 py-2 bg-slate-50 text-xs font-bold text-slate-600 uppercase tracking-wide">
+                                        Rendimiento por linea
+                                    </div>
+                                    <div className="divide-y divide-slate-100">
+                                        {Object.entries(activeCampaign.runtimeBySession)
+                                            .sort((a, b) => (b[1].sent + b[1].failed) - (a[1].sent + a[1].failed))
+                                            .map(([sessionId, row]) => (
+                                                <div key={sessionId} className="px-3 py-2 text-xs text-slate-600">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="font-semibold text-slate-700">{sessionId}</span>
+                                                        <span className="text-green-600">{row.sent} enviados</span>
+                                                        <span className="text-red-500">{row.failed} fallidos</span>
+                                                        <span className="text-slate-400">{(row.sent + row.failed)} procesados</span>
+                                                    </div>
+                                                    {row.lastError && (
+                                                        <div className="mt-1 text-red-500 truncate" title={row.lastError}>
+                                                            Ultimo error: {row.lastError}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Recipients list */}
                             <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">

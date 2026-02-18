@@ -100,7 +100,14 @@ export const updateCampaign = (id: string, updates: Partial<CreateCampaignInput>
 };
 
 export const getCampaignProgress = (id: string) => {
-    return getCampaignFromDb(id);
+    const campaign = getCampaignFromDb(id);
+    if (!campaign) return undefined;
+
+    const runtimeBySession = campaignQueue.getRuntimeMetrics(id);
+    return {
+        ...campaign,
+        runtimeBySession
+    };
 };
 
 export const cancelCampaign = (id: string): Campaign => {
