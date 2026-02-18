@@ -11,9 +11,14 @@ export interface MessageLog {
     error?: string;
 }
 
+const buildUniqueId = (baseId: string): string => {
+    const safeBase = (baseId || 'msg').replace(/\s+/g, '_');
+    return `${safeBase}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+};
+
 export const logMessage = (entry: Omit<MessageLog, 'timestamp' | 'session_id'> & { sessionId: string }) => {
     const logEntry = {
-        id: entry.id,
+        id: entry.id || buildUniqueId('msg'),
         session_id: entry.sessionId,
         phone: entry.phone,
         message: entry.message,
@@ -30,6 +35,22 @@ export const logMessage = (entry: Omit<MessageLog, 'timestamp' | 'session_id'> &
         `);
         stmt.run(logEntry);
     } catch (error) {
+        const sqliteCode = (error as any)?.code as string | undefined;
+        if (sqliteCode === 'SQLITE_CONSTRAINT_PRIMARYKEY' || sqliteCode === 'SQLITE_CONSTRAINT_UNIQUE') {
+            try {
+                const retry = { ...logEntry, id: buildUniqueId(logEntry.id) };
+                const retryStmt = db.prepare(`
+                    INSERT INTO messages (id, session_id, phone, message, timestamp, status, direction, error)
+                    VALUES (@id, @session_id, @phone, @message, @timestamp, @status, @direction, @error)
+                `);
+                retryStmt.run(retry);
+                return;
+            } catch (retryError) {
+                console.error('Error writing to message log after PK retry:', retryError);
+                return;
+            }
+        }
+
         console.error('Error writing to message log:', error);
     }
 };

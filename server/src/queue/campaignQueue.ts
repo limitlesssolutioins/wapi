@@ -107,7 +107,7 @@ class CampaignQueue {
         };
 
         const workers = workerSessionIds.map(async (sessionId) => {
-            let sentByWorker = 0;
+            let attemptsByWorker = 0;
 
             while (true) {
                 if (shouldStop()) {
@@ -121,7 +121,7 @@ class CampaignQueue {
 
                 const { recipient, index } = item;
 
-                if (sentByWorker > 0) {
+                if (attemptsByWorker > 0) {
                     const canContinue = await this.sleepWithStatusCheck(campaignId, minDelayMs, maxDelayMs);
                     if (!canContinue) {
                         return;
@@ -132,7 +132,7 @@ class CampaignQueue {
                     const resolvedMessage = this.resolveVariables(template.content, recipient);
                     await waService.sendMessage(sessionId, recipient.phone, resolvedMessage, campaign.imageUrl);
                     updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
-                    sentByWorker++;
+                    attemptsByWorker++;
 
                     console.log(
                         `[Campaign ${campaignId}] [${index + 1}/${pendingRecipients.length}] Sent to ${recipient.phone} via ${sessionId}`
@@ -140,6 +140,7 @@ class CampaignQueue {
                 } catch (error) {
                     const errorMsg = error instanceof Error ? error.message : String(error);
                     updateRecipientStatus(campaignId, recipient.contactId, 'FAILED', errorMsg);
+                    attemptsByWorker++;
                     console.error(
                         `[Campaign ${campaignId}] [${index + 1}/${pendingRecipients.length}] Failed for ${recipient.phone} via ${sessionId}: ${errorMsg}`
                     );

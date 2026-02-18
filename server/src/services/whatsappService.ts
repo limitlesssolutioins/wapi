@@ -24,6 +24,11 @@ export class WhatsAppService {
     private sessions: Map<string, SessionData> = new Map();
     private lidToPn: Map<string, string> = new Map(); // Map to resolve LID to PN
 
+    private createLogId(prefix: string, sessionId: string, phone: string): string {
+        const cleanPhone = (phone || '').replace(/\D/g, '') || 'na';
+        return `${prefix}_${sessionId}_${cleanPhone}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+
     private getSession(sessionId: string): SessionData {
         if (!this.sessions.has(sessionId)) {
             this.sessions.set(sessionId, {
@@ -176,7 +181,7 @@ export class WhatsAppService {
                                 console.log(`[${sessionId}] Storing message from/to: ${phone}${phone !== rawId ? ' (Resolved from LID)' : ''}`);
                                 if (!msg.key.fromMe) {
                                     logMessage({
-                                        id: msg.key.id || 'unknown',
+                                        id: msg.key.id || this.createLogId('incoming', sessionId, phone),
                                         sessionId,
                                         phone,
                                         message: text,
@@ -185,7 +190,7 @@ export class WhatsAppService {
                                     });
                                 } else if (msg.key.fromMe && m.type === 'notify') {
                                     logMessage({
-                                        id: msg.key.id || 'unknown',
+                                        id: msg.key.id || this.createLogId('outgoing_notify', sessionId, phone),
                                         sessionId,
                                         phone,
                                         message: text,
@@ -252,7 +257,7 @@ export class WhatsAppService {
             }
             
             logMessage({
-                id: msgResult?.key?.id || 'unknown',
+                id: msgResult?.key?.id || this.createLogId('outgoing_send', sessionId, cleanedPhone),
                 sessionId,
                 phone: cleanedPhone,
                 message: text,
@@ -261,14 +266,20 @@ export class WhatsAppService {
             });
             return msgResult;
         } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            if (errorMsg.toLowerCase().includes('connection closed')) {
+                // Force fresh socket on next attempt
+                session.socket = null;
+            }
+
             logMessage({
-                id: 'failed',
+                id: this.createLogId('failed', sessionId, cleanedPhone),
                 sessionId,
                 phone: cleanedPhone,
                 message: text,
                 status: 'FAILED',
                 direction: 'OUTGOING',
-                error: error instanceof Error ? error.message : String(error)
+                error: errorMsg
             });
             throw error;
         }
