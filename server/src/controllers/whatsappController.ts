@@ -4,9 +4,13 @@ import { getHistory } from '../utils/logger.js';
 import db from '../db/index.js';
 
 export const getStatus = (req: Request, res: Response) => {
-    const sessionId = req.query.sessionId as string;
+    const sessionId = (req.query.sessionId as string || '').trim().toLowerCase();
     if (!sessionId) {
         res.status(400).json({ error: 'sessionId is required' });
+        return;
+    }
+    if (!waService.isValidSessionId(sessionId)) {
+        res.status(400).json({ error: 'Invalid sessionId' });
         return;
     }
     const { status, qrCode } = waService.getConnectionStatus(sessionId);
@@ -22,9 +26,13 @@ export const getSessions = (_req: Request, res: Response) => {
 };
 
 export const initSession = async (req: Request, res: Response) => {
-    const { sessionId } = req.body || {};
+    const sessionId = (req.body?.sessionId || '').trim().toLowerCase();
     if (!sessionId) {
         res.status(400).json({ error: 'sessionId is required' });
+        return;
+    }
+    if (!waService.isValidSessionId(sessionId)) {
+        res.status(400).json({ error: 'Invalid sessionId. Avoid reserved names like "default".' });
         return;
     }
     try {
@@ -36,9 +44,13 @@ export const initSession = async (req: Request, res: Response) => {
 };
 
 export const logoutSession = async (req: Request, res: Response) => {
-    const { sessionId } = req.body || {};
+    const sessionId = (req.body?.sessionId || '').trim().toLowerCase();
     if (!sessionId) {
         res.status(400).json({ error: 'sessionId is required' });
+        return;
+    }
+    if (!waService.isValidSessionId(sessionId)) {
+        res.status(400).json({ error: 'Invalid sessionId' });
         return;
     }
     try {
@@ -50,9 +62,14 @@ export const logoutSession = async (req: Request, res: Response) => {
 };
 
 export const renameSession = async (req: Request, res: Response) => {
-    const { oldId, newId } = req.body;
+    const oldId = (req.body?.oldId || '').trim().toLowerCase();
+    const newId = (req.body?.newId || '').trim().toLowerCase();
     if (!oldId || !newId) {
         res.status(400).json({ error: 'oldId and newId are required' });
+        return;
+    }
+    if (!waService.isValidSessionId(oldId) || !waService.isValidSessionId(newId)) {
+        res.status(400).json({ error: 'Invalid session name. Avoid reserved names like "default".' });
         return;
     }
     try {
@@ -64,9 +81,14 @@ export const renameSession = async (req: Request, res: Response) => {
 };
 
 export const sendMessage = async (req: Request, res: Response) => {
-    const { phone, message, sessionId } = req.body || {};
+    const { phone, message } = req.body || {};
+    const sessionId = (req.body?.sessionId || '').trim().toLowerCase();
     if (!sessionId) {
         res.status(400).json({ error: 'sessionId is required' });
+        return;
+    }
+    if (!waService.isValidSessionId(sessionId)) {
+        res.status(400).json({ error: 'Invalid sessionId' });
         return;
     }
     try {

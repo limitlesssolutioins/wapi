@@ -9,6 +9,7 @@ import {
 import { getContactById, getAllContacts, getContacts, Contact } from '../utils/contacts.js';
 import { campaignQueue } from '../queue/campaignQueue.js';
 import { getTemplateById } from '../utils/templates.js';
+import { waService } from './whatsappService.js';
 
 interface CreateCampaignInput {
     name: string;
@@ -22,6 +23,9 @@ interface CreateCampaignInput {
 
 export const createCampaign = (input: CreateCampaignInput): Campaign => {
     const { name, templateId, imageUrl, contactIds, groupId, sessionIds, scheduleTime } = input;
+    const sanitizedSessionIds = (sessionIds || [])
+        .map((s) => (s || '').trim().toLowerCase())
+        .filter((s) => waService.isValidSessionId(s));
     
     // 1. Validate Template
     const template = getTemplateById(templateId);
@@ -56,11 +60,15 @@ export const createCampaign = (input: CreateCampaignInput): Campaign => {
     // 4. Determine initial status
     const status = scheduleTime ? 'QUEUED' : 'PROCESSING';
 
+    if (sanitizedSessionIds.length === 0) {
+        throw new Error('At least one valid session ID is required.');
+    }
+
     const campaignData: Omit<Campaign, 'id' | 'createdAt' | 'stats'> = {
         name,
         templateId,
         imageUrl,
-        sessionIds,
+        sessionIds: sanitizedSessionIds,
         status,
         scheduleTime,
     };
@@ -90,11 +98,19 @@ export const updateCampaign = (id: string, updates: Partial<CreateCampaignInput>
         if (!template) throw new Error('Template not found');
     }
 
+    const sanitizedSessionIds = updates.sessionIds
+        ? updates.sessionIds.map((s) => (s || '').trim().toLowerCase()).filter((s) => waService.isValidSessionId(s))
+        : undefined;
+
+    if (updates.sessionIds && (!sanitizedSessionIds || sanitizedSessionIds.length === 0)) {
+        throw new Error('At least one valid session ID is required.');
+    }
+
     updateCampaignDetails(id, {
         name: updates.name,
         templateId: updates.templateId,
         imageUrl: updates.imageUrl,
-        sessionIds: updates.sessionIds,
+        sessionIds: sanitizedSessionIds,
         scheduleTime: updates.scheduleTime
     });
 };
@@ -103,10 +119,11 @@ export const getCampaignProgress = (id: string) => {
     const campaign = getCampaignFromDb(id);
     if (!campaign) return undefined;
 
-    const runtimeBySession = campaignQueue.getRuntimeMetrics(id);
+    const runtime = campaignQueue.getRuntimeMetrics(id);
     return {
         ...campaign,
-        runtimeBySession
+        runtimeBySession: runtime?.bySession,
+        runtime
     };
 };
 

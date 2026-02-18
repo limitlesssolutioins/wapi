@@ -49,6 +49,16 @@ interface Campaign {
         lastError?: string;
         lastActivityAt?: string;
     }>;
+    runtime?: {
+        startedAt: string;
+        bySession: Record<string, {
+            sent: number;
+            failed: number;
+            lastError?: string;
+            lastActivityAt?: string;
+        }>;
+        errorCounts: Record<string, number>;
+    };
     createdAt: string;
     completedAt?: string;
 }
@@ -448,6 +458,17 @@ export default function Campaigns() {
     };
 
     const totals = getCampaignTotals(activeCampaign);
+
+    const campaignStartedAt = activeCampaign?.runtime?.startedAt || activeCampaign?.createdAt;
+    const elapsedMinutes = campaignStartedAt
+        ? Math.max(1 / 60, (Date.now() - new Date(campaignStartedAt).getTime()) / 60000)
+        : 0;
+    const processedCount = totals.sent + totals.failed;
+    const globalRatePerMin = elapsedMinutes > 0 ? processedCount / elapsedMinutes : 0;
+    const etaMinutes = globalRatePerMin > 0 ? totals.pending / globalRatePerMin : null;
+    const topErrors = Object.entries(activeCampaign?.runtime?.errorCounts || {})
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3);
 
     const progressPercent = activeCampaign
         ? Math.round(((totals.sent + totals.failed) / Math.max(1, totals.total)) * 100)
@@ -856,6 +877,23 @@ export default function Campaigns() {
                                 </span>
                             </div>
 
+                            <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                                <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                                    <p className="text-slate-400 uppercase tracking-wide">Velocidad</p>
+                                    <p className="font-semibold text-slate-700">{globalRatePerMin.toFixed(2)} msg/min</p>
+                                </div>
+                                <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                                    <p className="text-slate-400 uppercase tracking-wide">ETA</p>
+                                    <p className="font-semibold text-slate-700">
+                                        {etaMinutes !== null ? `${Math.ceil(etaMinutes)} min` : 'Calculando...'}
+                                    </p>
+                                </div>
+                                <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                                    <p className="text-slate-400 uppercase tracking-wide">Procesados</p>
+                                    <p className="font-semibold text-slate-700">{processedCount} / {totals.total}</p>
+                                </div>
+                            </div>
+
                             {activeCampaign.runtimeBySession && Object.keys(activeCampaign.runtimeBySession).length > 0 && (
                                 <div className="mb-4 border border-slate-200 rounded-lg overflow-hidden">
                                     <div className="px-3 py-2 bg-slate-50 text-xs font-bold text-slate-600 uppercase tracking-wide">
@@ -872,6 +910,9 @@ export default function Campaigns() {
                                                         <span className="text-red-500">{row.failed} fallidos</span>
                                                         <span className="text-slate-400">{(row.sent + row.failed)} procesados</span>
                                                     </div>
+                                                    <div className="mt-1 text-slate-400">
+                                                        Velocidad: {((row.sent + row.failed) / elapsedMinutes).toFixed(2)} msg/min
+                                                    </div>
                                                     {row.lastError && (
                                                         <div className="mt-1 text-red-500 truncate" title={row.lastError}>
                                                             Ultimo error: {row.lastError}
@@ -879,6 +920,22 @@ export default function Campaigns() {
                                                     )}
                                                 </div>
                                             ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {topErrors.length > 0 && (
+                                <div className="mb-4 border border-amber-200 rounded-lg overflow-hidden">
+                                    <div className="px-3 py-2 bg-amber-50 text-xs font-bold text-amber-700 uppercase tracking-wide">
+                                        Top errores
+                                    </div>
+                                    <div className="divide-y divide-amber-100">
+                                        {topErrors.map(([errorText, count]) => (
+                                            <div key={errorText} className="px-3 py-2 text-xs flex items-center gap-2">
+                                                <span className="text-amber-700 font-semibold">{count}x</span>
+                                                <span className="text-slate-600 truncate" title={errorText}>{errorText}</span>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             )}

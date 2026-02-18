@@ -58,14 +58,15 @@ export default function DeviceManager() {
     };
 
     const handleRename = async (oldId: string) => {
-        if (!renamingValue.trim() || renamingValue === oldId) {
+        const newName = renamingValue.trim().toLowerCase();
+        if (!newName || newName === oldId) {
             setRenamingId(null);
             return;
         }
         try {
-            await api.post('/api/whatsapp/rename', { oldId, newId: renamingValue.trim().toLowerCase() });
-            toast.success('Sesión renombrada');
-            if (currentSession === oldId) setCurrentSession(renamingValue.trim().toLowerCase());
+            await api.post('/api/whatsapp/rename', { oldId, newId: newName });
+            toast.success('Sesion renombrada');
+            if (currentSession === oldId) setCurrentSession(newName);
             fetchSessions();
         } catch (error: any) {
             toast.error(error.response?.data?.error || 'Error al renombrar');
@@ -122,13 +123,30 @@ export default function DeviceManager() {
     const isConnected = statusData.status === 'CONNECTED';
     const isQrReady = statusData.status === 'QR_READY' || (statusData.status === 'CONNECTING' && statusData.qrCode);
 
-    const handleAddSession = (e: React.FormEvent) => {
+    const handleAddSession = async (e: React.FormEvent) => {
         e.preventDefault();
         const name = newSessionName.trim().toLowerCase();
-        if (name && !sessions.includes(name)) {
-            setSessions([...sessions, name]);
+        if (!name) return;
+        if (name === 'default') {
+            toast.error('El nombre "default" esta reservado.');
+            return;
+        }
+        if (sessions.includes(name)) {
+            setCurrentSession(name);
+            return;
+        }
+
+        try {
+            setLoading(true);
+            await api.post('/api/whatsapp/init', { sessionId: name });
             setCurrentSession(name);
             setNewSessionName('');
+            await fetchSessions();
+            setTimeout(fetchStatus, 1500);
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Error al crear sesion');
+        } finally {
+            setLoading(false);
         }
     };
 

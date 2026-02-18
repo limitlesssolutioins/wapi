@@ -8,16 +8,24 @@ const parseEnvInt = (value: string | undefined, fallback: number): number => {
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 };
 
+type SessionRuntimeMetrics = {
+    sent: number;
+    failed: number;
+    lastError?: string;
+    lastActivityAt?: string;
+};
+
+type CampaignRuntimeMetrics = {
+    startedAt: string;
+    bySession: Record<string, SessionRuntimeMetrics>;
+    errorCounts: Record<string, number>;
+};
+
 class CampaignQueue {
     private queue: string[] = [];
     private queuedIds = new Set<string>();
     private processing = false;
-    private runtimeByCampaign = new Map<string, Record<string, {
-        sent: number;
-        failed: number;
-        lastError?: string;
-        lastActivityAt?: string;
-    }>>();
+    private runtimeByCampaign = new Map<string, CampaignRuntimeMetrics>();
 
     enqueue(campaignId: string): void {
         if (this.queuedIds.has(campaignId)) {
@@ -76,8 +84,8 @@ class CampaignQueue {
             campaign.status = 'PROCESSING';
         }
 
-        const sessionIds = campaign.sessionIds;
-        if (!sessionIds || sessionIds.length === 0) {
+        const sessionIds = (campaign.sessionIds || []).filter((s) => waService.isValidSessionId(s));
+        if (sessionIds.length === 0) {
             console.error(`[Campaign ${campaignId}] Error: No sessions assigned.`);
             updateCampaignStatus(campaignId, 'FAILED');
             return;
@@ -207,20 +215,19 @@ class CampaignQueue {
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    getRuntimeMetrics(campaignId: string): Record<string, {
-        sent: number;
-        failed: number;
-        lastError?: string;
-        lastActivityAt?: string;
-    }> | undefined {
+    getRuntimeMetrics(campaignId: string): CampaignRuntimeMetrics | undefined {
         return this.runtimeByCampaign.get(campaignId);
     }
 
     private initializeRuntimeMetrics(campaignId: string, sessionIds: string[]): void {
-        const existing = this.runtimeByCampaign.get(campaignId) ?? {};
+        const existing = this.runtimeByCampaign.get(campaignId) ?? {
+            startedAt: new Date().toISOString(),
+            bySession: {},
+            errorCounts: {}
+        };
         for (const sessionId of sessionIds) {
-            if (!existing[sessionId]) {
-                existing[sessionId] = {
+            if (!existing.bySession[sessionId]) {
+                existing.bySession[sessionId] = {
                     sent: 0,
                     failed: 0
                 };
@@ -230,15 +237,21 @@ class CampaignQueue {
     }
 
     private bumpSessionMetric(campaignId: string, sessionId: string, type: 'sent' | 'failed', lastError?: string): void {
-        const metrics = this.runtimeByCampaign.get(campaignId) ?? {};
-        if (!metrics[sessionId]) {
-            metrics[sessionId] = { sent: 0, failed: 0 };
+        const metrics = this.runtimeByCampaign.get(campaignId) ?? {
+            startedAt: new Date().toISOString(),
+            bySession: {},
+            errorCounts: {}
+        };
+        if (!metrics.bySession[sessionId]) {
+            metrics.bySession[sessionId] = { sent: 0, failed: 0 };
         }
 
-        metrics[sessionId][type] += 1;
-        metrics[sessionId].lastActivityAt = new Date().toISOString();
+        metrics.bySession[sessionId][type] += 1;
+        metrics.bySession[sessionId].lastActivityAt = new Date().toISOString();
         if (type === 'failed') {
-            metrics[sessionId].lastError = lastError;
+            metrics.bySession[sessionId].lastError = lastError;
+            const key = (lastError || 'Unknown error').slice(0, 120);
+            metrics.errorCounts[key] = (metrics.errorCounts[key] || 0) + 1;
         }
 
         this.runtimeByCampaign.set(campaignId, metrics);

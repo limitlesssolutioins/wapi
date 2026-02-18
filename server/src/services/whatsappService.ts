@@ -23,6 +23,7 @@ interface SessionData {
 export class WhatsAppService {
     private sessions: Map<string, SessionData> = new Map();
     private lidToPn: Map<string, string> = new Map(); // Map to resolve LID to PN
+    private stopReconnectFor = new Set<string>();
 
     private createLogId(prefix: string, sessionId: string, phone: string): string {
         const cleanPhone = (phone || '').replace(/\D/g, '') || 'na';
@@ -38,6 +39,13 @@ export class WhatsAppService {
             });
         }
         return this.sessions.get(sessionId)!;
+    }
+
+    isValidSessionId(sessionId: string): boolean {
+        if (!sessionId) return false;
+        const normalized = sessionId.trim().toLowerCase();
+        if (normalized === 'default') return false;
+        return /^[a-z0-9][a-z0-9 _-]{0,49}$/.test(normalized);
     }
 
     private getAuthFolder(sessionId: string): string {
@@ -57,6 +65,9 @@ export class WhatsAppService {
                 console.log(`Found ${sessionFolders.length} existing sessions. Attempting clean reconnection...`);
                 for (const folder of sessionFolders) {
                     const sessionId = folder.replace('auth_info_', '');
+                    if (!this.isValidSessionId(sessionId)) {
+                        continue;
+                    }
                     await new Promise(resolve => setTimeout(resolve, 1000));
                     await this.connect(sessionId);
                 }
@@ -67,6 +78,10 @@ export class WhatsAppService {
     }
 
     async connect(sessionId: string): Promise<void> {
+        if (!this.isValidSessionId(sessionId)) {
+            throw new Error(`Invalid session ID: ${sessionId}`);
+        }
+        this.stopReconnectFor.delete(sessionId);
         const session = this.getSession(sessionId);
         
         if (session.socket) {
@@ -147,8 +162,9 @@ export class WhatsAppService {
                     clearTimeout(connectionTimeout);
                     const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
                     const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                    const isIntentionalStop = this.stopReconnectFor.has(sessionId);
                     
-                    if (shouldReconnect) {
+                    if (shouldReconnect && !isIntentionalStop) {
                         session.status = 'CONNECTING';
                         setTimeout(() => this.connect(sessionId), 5000);
                     } else {
@@ -214,7 +230,10 @@ export class WhatsAppService {
         }
     }
 
-    getConnectionStatus(sessionId: string = 'default') {
+    getConnectionStatus(sessionId: string) {
+        if (!this.isValidSessionId(sessionId)) {
+            return { status: 'DISCONNECTED' as const, qrCode: null };
+        }
         const session = this.getSession(sessionId);
         return {
             status: session.status,
@@ -228,13 +247,17 @@ export class WhatsAppService {
             const files = fs.readdirSync(rootDir);
             return files
                 .filter(f => f.startsWith('auth_info_') && fs.statSync(path.join(rootDir, f)).isDirectory())
-                .map(f => f.replace('auth_info_', ''));
+                .map(f => f.replace('auth_info_', ''))
+                .filter(sessionId => this.isValidSessionId(sessionId));
         } catch (error) {
             return [];
         }
     }
 
     async sendMessage(sessionId: string, phone: string, text: string, imageUrl?: string) {
+        if (!this.isValidSessionId(sessionId)) {
+            throw new Error(`Invalid session ID: ${sessionId}`);
+        }
         const session = this.getSession(sessionId);
         if (!session.socket) {
             await this.connect(sessionId);
@@ -286,6 +309,8 @@ export class WhatsAppService {
     }
 
     async disconnect(sessionId: string): Promise<void> {
+        if (!this.isValidSessionId(sessionId)) return;
+        this.stopReconnectFor.add(sessionId);
         const session = this.getSession(sessionId);
         if (session.socket) {
             session.socket.end(undefined);
@@ -295,6 +320,8 @@ export class WhatsAppService {
     }
 
     async logout(sessionId: string): Promise<void> {
+        if (!this.isValidSessionId(sessionId)) return;
+        this.stopReconnectFor.add(sessionId);
         try { await this.disconnect(sessionId); } catch (e) {}
         const authFolder = this.getAuthFolder(sessionId);
         try {
@@ -304,6 +331,8 @@ export class WhatsAppService {
     }
 
     async renameSession(oldId: string, newId: string): Promise<void> {
+        if (!this.isValidSessionId(oldId)) throw new Error('Invalid original session name.');
+        if (!this.isValidSessionId(newId)) throw new Error('Invalid new session name.');
         if (oldId === newId) return;
         const oldFolder = this.getAuthFolder(oldId);
         const newFolder = this.getAuthFolder(newId);
