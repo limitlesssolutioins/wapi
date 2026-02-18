@@ -119,6 +119,13 @@ export default function DeviceManager() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchSessions();
+        const interval = setInterval(fetchSessions, 5000);
+        return () => clearInterval(interval);
+    }, []);
+
     useEffect(() => {
         if (!currentSession) {
              setStatusData({ status: 'DISCONNECTED', qrCode: null });
