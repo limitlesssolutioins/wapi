@@ -3,6 +3,7 @@ import {
     getStatus, 
     initSession, 
     logoutSession, 
+    resetSession,
     renameSession, 
     sendMessage, 
     getMessageHistory, 
@@ -18,6 +19,7 @@ router.get('/status', getStatus);
 router.get('/sessions', getSessions);
 router.post('/init', initSession);
 router.post('/logout', logoutSession);
+router.post('/reset', resetSession);
 router.post('/rename', renameSession);
 router.post('/send', sendMessage);
 router.get('/history', getMessageHistory);

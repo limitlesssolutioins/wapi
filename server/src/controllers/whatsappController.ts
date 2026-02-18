@@ -61,6 +61,24 @@ export const logoutSession = async (req: Request, res: Response) => {
     }
 };
 
+export const resetSession = async (req: Request, res: Response) => {
+    const sessionId = (req.body?.sessionId || '').trim().toLowerCase();
+    if (!sessionId) {
+        res.status(400).json({ error: 'sessionId is required' });
+        return;
+    }
+    if (!waService.isValidSessionId(sessionId)) {
+        res.status(400).json({ error: 'Invalid sessionId' });
+        return;
+    }
+    try {
+        await waService.resetSession(sessionId);
+        res.json({ message: `Session ${sessionId} reset started` });
+    } catch (error: any) {
+        res.status(500).json({ error: error?.message || 'Failed to reset session' });
+    }
+};
+
 export const renameSession = async (req: Request, res: Response) => {
     const oldId = (req.body?.oldId || '').trim().toLowerCase();
     const newId = (req.body?.newId || '').trim().toLowerCase();

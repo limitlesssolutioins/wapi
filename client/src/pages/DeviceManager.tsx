@@ -104,11 +104,21 @@ export default function DeviceManager() {
             setLoading(false);
         }
     };
-
-    useEffect(() => {
-        fetchSessions();
-    }, []);
-
+    const forceNewQr = async () => {
+        if (!currentSession) return;
+        if (!confirm(`Se reiniciara la sesion "${currentSession}" para generar un QR nuevo. Continuar?`)) return;
+        setLoading(true);
+        try {
+            await api.post('/api/whatsapp/reset', { sessionId: currentSession });
+            toast.success('Reinicio de sesion iniciado. Esperando nuevo QR...');
+            setStatusData({ status: 'CONNECTING', qrCode: null });
+            setTimeout(fetchStatus, 1500);
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'No se pudo reiniciar la sesion');
+        } finally {
+            setLoading(false);
+        }
+    };
     useEffect(() => {
         if (!currentSession) {
              setStatusData({ status: 'DISCONNECTED', qrCode: null });
@@ -281,6 +291,13 @@ export default function DeviceManager() {
                                             <RefreshCcw size={20} className={loading || statusData.status === 'CONNECTING' ? "animate-spin" : ""} />
                                             {loading || statusData.status === 'CONNECTING' ? 'Iniciando...' : 'Iniciar Sesión'}
                                         </button>
+                                        <button
+                                            onClick={forceNewQr}
+                                            disabled={loading}
+                                            className="px-4 py-3 bg-amber-100 text-amber-800 border border-amber-200 rounded-xl hover:bg-amber-200 transition-colors font-medium"
+                                        >
+                                            Forzar nuevo QR
+                                        </button>
                                         {(loading || statusData.status === 'CONNECTING') && (
                                             <button 
                                                 onClick={() => {
@@ -309,3 +326,8 @@ export default function DeviceManager() {
         </div>
     );
 }
+
+
+
+
+

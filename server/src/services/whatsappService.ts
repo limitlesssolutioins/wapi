@@ -330,6 +330,15 @@ export class WhatsAppService {
         } catch (error) {}
     }
 
+    async resetSession(sessionId: string): Promise<void> {
+        if (!this.isValidSessionId(sessionId)) {
+            throw new Error('Invalid session ID.');
+        }
+        await this.logout(sessionId);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await this.connect(sessionId);
+    }
+
     async renameSession(oldId: string, newId: string): Promise<void> {
         if (!this.isValidSessionId(oldId)) throw new Error('Invalid original session name.');
         if (!this.isValidSessionId(newId)) throw new Error('Invalid new session name.');
