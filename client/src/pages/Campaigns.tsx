@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
-import { Send, Search, CheckCircle, AlertTriangle, Clock, Users, History, Loader2, FileText, Trash2, Plus, Eye, ChevronLeft, ChevronRight, X, Pencil } from 'lucide-react';
+import { Send, Search, CheckCircle, AlertTriangle, Clock, Users, History, Loader2, FileText, Trash2, Plus, Eye, ChevronLeft, ChevronRight, X, Pencil, PhoneOff, Copy, FolderInput } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Contact {
@@ -114,6 +114,8 @@ export default function Campaigns() {
     // History Pagination
     const [historyPage, setHistoryPage] = useState(1);
     const [historyMeta, setHistoryMeta] = useState({ total: 0, page: 1, totalPages: 1 });
+
+    const [moveToGroupId, setMoveToGroupId] = useState('');
 
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const isTerminalStatus = (status?: string) =>
@@ -971,6 +973,73 @@ export default function Campaigns() {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* Numbers without WhatsApp */}
+                            {(() => {
+                                const noWhatsApp = activeCampaign.recipients.filter(
+                                    r => r.status === 'FAILED' && r.error?.includes('is not registered')
+                                );
+                                if (noWhatsApp.length === 0) return null;
+                                return (
+                                    <div className="mt-4 border border-orange-200 rounded-lg overflow-hidden">
+                                        <div className="px-3 py-2 bg-orange-50 flex items-center justify-between">
+                                            <span className="text-xs font-bold text-orange-700 uppercase tracking-wide flex items-center gap-1.5">
+                                                <PhoneOff size={13} /> Sin WhatsApp ({noWhatsApp.length})
+                                            </span>
+                                            <button
+                                                onClick={() => {
+                                                    const text = noWhatsApp.map(r => `${r.name}\t${r.phone}`).join('\n');
+                                                    navigator.clipboard.writeText(text);
+                                                    toast.success(`${noWhatsApp.length} números copiados al portapapeles`);
+                                                }}
+                                                className="text-xs text-orange-600 hover:text-orange-800 flex items-center gap-1 font-medium"
+                                            >
+                                                <Copy size={12} /> Copiar
+                                            </button>
+                                        </div>
+                                        <div className="divide-y divide-orange-100 max-h-40 overflow-y-auto">
+                                            {noWhatsApp.map(r => (
+                                                <div key={r.contactId} className="px-3 py-1.5 text-xs flex items-center justify-between">
+                                                    <span className="text-slate-700">{r.name}</span>
+                                                    <span className="text-slate-500 font-mono">{r.phone}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="px-3 py-2 bg-orange-50 border-t border-orange-200 flex items-center gap-2">
+                                            <FolderInput size={13} className="text-orange-600 flex-shrink-0" />
+                                            <select
+                                                value={moveToGroupId}
+                                                onChange={(e) => setMoveToGroupId(e.target.value)}
+                                                className="flex-1 text-xs border border-orange-300 rounded px-2 py-1 outline-none focus:border-orange-500"
+                                            >
+                                                <option value="">Mover a grupo...</option>
+                                                {groups.map(g => (
+                                                    <option key={g.id} value={g.id}>{g.name}</option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                disabled={!moveToGroupId}
+                                                onClick={async () => {
+                                                    const ids = noWhatsApp.map(r => r.contactId).filter(Boolean);
+                                                    if (ids.length === 0) return;
+                                                    try {
+                                                        await api.post('/api/groups/assign', { contactIds: ids, groupId: moveToGroupId });
+                                                        const groupName = groups.find(g => g.id === moveToGroupId)?.name;
+                                                        toast.success(`${ids.length} contactos movidos a "${groupName}"`);
+                                                        setMoveToGroupId('');
+                                                        fetchGroups();
+                                                    } catch (err) {
+                                                        toast.error('Error al mover contactos');
+                                                    }
+                                                }}
+                                                className="text-xs bg-orange-600 text-white px-3 py-1 rounded font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                                Mover
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     )}
 

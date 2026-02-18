@@ -121,8 +121,18 @@ class CampaignQueue {
             return currentStatus === 'PAUSED' || currentStatus === 'FAILED' || currentStatus === 'CANCELLED';
         };
 
+        // Batch break settings: rest 2-4 min every 12-18 messages per session
+        const batchBreakMinMessages = parseEnvInt(process.env.CAMPAIGN_BATCH_MIN, 12);
+        const batchBreakMaxMessages = parseEnvInt(process.env.CAMPAIGN_BATCH_MAX, 18);
+        const batchBreakMinMs = parseEnvInt(process.env.CAMPAIGN_BATCH_REST_MIN_MS, 120000); // 2 min
+        const batchBreakMaxMs = Math.max(batchBreakMinMs, parseEnvInt(process.env.CAMPAIGN_BATCH_REST_MAX_MS, 240000)); // 4 min
+
         const workers = workerSessionIds.map(async (sessionId) => {
             let attemptsByWorker = 0;
+            let messagesSinceBatchBreak = 0;
+            const nextBatchBreakAt = () =>
+                Math.floor(Math.random() * (batchBreakMaxMessages - batchBreakMinMessages + 1)) + batchBreakMinMessages;
+            let currentBatchLimit = nextBatchBreakAt();
 
             while (true) {
                 if (shouldStop()) {
@@ -136,6 +146,19 @@ class CampaignQueue {
 
                 const { recipient, index } = item;
 
+                // Check if batch break is needed before sending
+                if (messagesSinceBatchBreak >= currentBatchLimit) {
+                    const restMs = Math.floor(Math.random() * (batchBreakMaxMs - batchBreakMinMs + 1)) + batchBreakMinMs;
+                    const restSec = Math.round(restMs / 1000);
+                    console.log(
+                        `[Campaign ${campaignId}] [${sessionId}] Batch break: ${messagesSinceBatchBreak} msgs sent, resting ${restSec}s...`
+                    );
+                    const canContinue = await this.sleepWithStatusCheck(campaignId, restMs, restMs);
+                    if (!canContinue) return;
+                    messagesSinceBatchBreak = 0;
+                    currentBatchLimit = nextBatchBreakAt();
+                }
+
                 // Always wait before sending, even on the first attempt.
                 // This prevents an initial burst of messages when the campaign starts.
                 const canContinue = await this.sleepWithStatusCheck(campaignId, minDelayMs, maxDelayMs);
@@ -148,14 +171,16 @@ class CampaignQueue {
                     await waService.sendMessage(sessionId, recipient.phone, resolvedMessage, campaign.imageUrl);
                     updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
                     this.bumpSessionMetric(campaignId, sessionId, 'sent');
+                    messagesSinceBatchBreak++;
 
                     console.log(
-                        `[Campaign ${campaignId}] [${index + 1}/${pendingRecipients.length}] Sent to ${recipient.phone} via ${sessionId}`
+                        `[Campaign ${campaignId}] [${index + 1}/${pendingRecipients.length}] Sent to ${recipient.phone} via ${sessionId} (batch ${messagesSinceBatchBreak}/${currentBatchLimit})`
                     );
                 } catch (error) {
                     const errorMsg = error instanceof Error ? error.message : String(error);
                     updateRecipientStatus(campaignId, recipient.contactId, 'FAILED', errorMsg);
                     attemptsByWorker++;
+                    messagesSinceBatchBreak++;
                     this.bumpSessionMetric(campaignId, sessionId, 'failed', errorMsg);
                     console.error(
                         `[Campaign ${campaignId}] [${index + 1}/${pendingRecipients.length}] Failed for ${recipient.phone} via ${sessionId}: ${errorMsg}`

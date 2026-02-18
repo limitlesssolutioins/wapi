@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../services/api';
 import { QRCodeSVG } from 'qrcode.react';
 import { RefreshCcw, CheckCircle, Smartphone, Plus, Trash2, Pencil, Check, X } from 'lucide-react';
@@ -20,11 +20,14 @@ export default function DeviceManager() {
     const [renamingId, setRenamingId] = useState<string | null>(null);
     const [renamingValue, setRenamingValue] = useState('');
 
-    const fetchSessions = async () => {
+    const currentSessionRef = useRef(currentSession);
+    currentSessionRef.current = currentSession;
+
+    const fetchSessions = useCallback(async () => {
         try {
             const { data } = await api.get<string[]>('/api/whatsapp/sessions');
             setSessions(data);
-            if (data.length > 0 && !currentSession) {
+            if (data.length > 0 && !currentSessionRef.current) {
                 setCurrentSession(data[0]);
             } else if (data.length === 0) {
                 setCurrentSession('');
@@ -33,7 +36,7 @@ export default function DeviceManager() {
             console.error(err);
             setSessions([]);
         }
-    };
+    }, []);
 
     const fetchStatus = async () => {
         try {
