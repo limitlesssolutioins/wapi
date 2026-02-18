@@ -81,9 +81,16 @@ export const sendSmsViaGateway = async (gatewayId: string, phone: string, messag
         }
 
         const text = await response.text().catch(() => '');
-        // Check for error responses from SMSMobileAPI
-        if (text.toLowerCase().includes('error')) {
-            throw new Error(`SMSMobileAPI: ${text}`);
+        // Parse SMSMobileAPI response to check for actual errors
+        try {
+            const json = JSON.parse(text);
+            const error = json?.result?.error ?? json?.error;
+            if (error && error !== 0 && error !== '0') {
+                throw new Error(`SMSMobileAPI: ${text}`);
+            }
+        } catch (parseErr) {
+            // If not valid JSON and contains error indicators, treat as failure
+            if (!(parseErr instanceof SyntaxError)) throw parseErr;
         }
     } catch (error) {
         if ((error as any)?.name === 'AbortError') {
