@@ -51,7 +51,7 @@ export default function DeviceManager() {
             setTimeout(fetchStatus, 2000);
         } catch (error) {
             console.error(error);
-            toast.error('Error al iniciar sesiÃ³n');
+            toast.error('Error al iniciar sesión');
         } finally {
             setLoading(false);
         }
@@ -76,10 +76,10 @@ export default function DeviceManager() {
     };
 
     const handleDeleteSession = async (sessionId: string) => {
-        if (!confirm(`Â¿EstÃ¡s seguro de eliminar la sesiÃ³n "${sessionId}"? Esto borrarÃ¡ sus datos de conexiÃ³n.`)) return;
+        if (!confirm(`¿Estás seguro de eliminar la sesión "${sessionId}"? Esto borrará sus datos de conexión.`)) return;
         try {
             await api.post('/api/whatsapp/logout', { sessionId });
-            toast.success('SesiÃ³n eliminada');
+            toast.success('Sesión eliminada');
             if (currentSession === sessionId) {
                 setCurrentSession('');
                 setStatusData({ status: 'DISCONNECTED', qrCode: null });
@@ -87,12 +87,12 @@ export default function DeviceManager() {
             fetchSessions();
         } catch (error) {
             console.error(error);
-            toast.error('Error al eliminar sesiÃ³n');
+            toast.error('Error al eliminar sesión');
         }
     };
 
     const logoutSession = async () => {
-        if (!confirm('Â¿EstÃ¡s seguro de cerrar sesiÃ³n?')) return;
+        if (!confirm('¿Estás seguro de cerrar sesión?')) return;
         setLoading(true);
         try {
             await api.post('/api/whatsapp/logout', { sessionId: currentSession });
@@ -169,7 +169,7 @@ export default function DeviceManager() {
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-slate-800">GestiÃ³n de Dispositivos</h2>
+            <h2 className="text-2xl font-bold text-slate-800">Gestión de Dispositivos</h2>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Session List Sidebar */}
@@ -234,7 +234,7 @@ export default function DeviceManager() {
                         <form onSubmit={handleAddSession} className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
                             <input 
                                 type="text"
-                                placeholder="Nueva sesiÃ³n..."
+                                placeholder="Nueva sesión..."
                                 value={newSessionName}
                                 onChange={(e) => setNewSessionName(e.target.value)}
                                 className="w-full px-2 py-1 text-sm border border-slate-300 rounded outline-none focus:border-blue-500"
@@ -267,7 +267,7 @@ export default function DeviceManager() {
                                 <div className="text-center text-green-600 animate-in fade-in zoom-in duration-300">
                                     <CheckCircle size={64} className="mx-auto mb-4" />
                                     <p className="font-bold text-xl">Dispositivo Conectado</p>
-                                    <p className="text-slate-500 mt-2 mb-6">Listo para manejar campaÃ±as para <span className="font-semibold text-slate-700 capitalize">{currentSession}</span></p>
+                                    <p className="text-slate-500 mt-2 mb-6">Listo para manejar campañas para <span className="font-semibold text-slate-700 capitalize">{currentSession}</span></p>
                                     
                                     <button
                                         onClick={logoutSession}
@@ -275,7 +275,7 @@ export default function DeviceManager() {
                                         className="px-6 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg border border-red-200 transition-colors text-sm font-medium flex items-center gap-2 mx-auto"
                                     >
                                         <Trash2 size={16} />
-                                        {loading ? 'Cerrando...' : 'Cerrar SesiÃ³n'}
+                                        {loading ? 'Cerrando...' : 'Cerrar Sesión'}
                                     </button>
                                 </div>
                             ) : isQrReady && statusData.qrCode ? (
@@ -283,12 +283,12 @@ export default function DeviceManager() {
                                     <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 inline-block mb-4">
                                         <QRCodeSVG value={statusData.qrCode} size={256} />
                                     </div>
-                                    <p className="text-slate-800 font-bold text-lg">Escanear CÃ³digo QR</p>
+                                    <p className="text-slate-800 font-bold text-lg">Escanear Código QR</p>
                                     <p className="text-slate-500">Abre WhatsApp &gt; Dispositivos vinculados &gt; Vincular un dispositivo</p>
                                 </div>
                             ) : (
                                 <div className="text-center">
-                                    <p className="text-slate-500 mb-6 text-lg">No hay sesiÃ³n activa para <span className="font-semibold text-slate-700 capitalize">{currentSession}</span></p>
+                                    <p className="text-slate-500 mb-6 text-lg">No hay sesión activa para <span className="font-semibold text-slate-700 capitalize">{currentSession}</span></p>
                                     <div className="flex justify-center gap-3">
                                         <button
                                             onClick={initSession}
@@ -296,7 +296,7 @@ export default function DeviceManager() {
                                             className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-200 flex items-center gap-3 font-medium"
                                         >
                                             <RefreshCcw size={20} className={loading || statusData.status === 'CONNECTING' ? "animate-spin" : ""} />
-                                            {loading || statusData.status === 'CONNECTING' ? 'Iniciando...' : 'Iniciar SesiÃ³n'}
+                                            {loading || statusData.status === 'CONNECTING' ? 'Iniciando...' : 'Iniciar Sesión'}
                                         </button>
                                         <button
                                             onClick={forceNewQr}
@@ -324,7 +324,7 @@ export default function DeviceManager() {
                     ) : (
                         <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-white rounded-xl border border-slate-200 p-12">
                             <Smartphone size={64} className="mb-4 opacity-50" />
-                            <h3 className="text-xl font-semibold mb-2">Selecciona una sesiÃ³n</h3>
+                            <h3 className="text-xl font-semibold mb-2">Selecciona una sesión</h3>
                             <p>O crea una nueva para comenzar a conectar dispositivos.</p>
                         </div>
                     )}
