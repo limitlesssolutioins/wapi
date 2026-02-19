@@ -260,7 +260,7 @@ export class WhatsAppService {
         }
     }
 
-    async sendMessage(sessionId: string, phone: string, text: string, imageUrl?: string) {
+    async sendMessage(sessionId: string, phone: string, text: string, imageUrl?: string, skipVerification = false) {
         if (!this.isValidSessionId(sessionId)) {
             throw new Error(`Invalid session ID: ${sessionId}`);
         }
@@ -270,14 +270,18 @@ export class WhatsAppService {
             await new Promise(resolve => setTimeout(resolve, 3000));
             if (!session.socket) throw new Error(`Session ${sessionId} is disconnected.`);
         }
-        
+
         const cleanedPhone = phone.replace(/\D/g, '');
         try {
-            const results = await session.socket.onWhatsApp(cleanedPhone);
-            const result = results?.[0];
-            if (!result || !result.exists) throw new Error(`Number ${cleanedPhone} is not registered.`);
-            
-            const jid = result.jid;
+            let jid: string;
+            if (skipVerification) {
+                jid = `${cleanedPhone}@s.whatsapp.net`;
+            } else {
+                const results = await session.socket.onWhatsApp(cleanedPhone);
+                const result = results?.[0];
+                if (!result || !result.exists) throw new Error(`Number ${cleanedPhone} is not registered.`);
+                jid = result.jid;
+            }
             let msgResult;
             if (imageUrl) {
                 msgResult = await session.socket.sendMessage(jid, { image: { url: imageUrl }, caption: text });

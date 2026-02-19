@@ -145,6 +145,9 @@ try {
     if (!campaignInfo.some(col => col.name === 'imageUrl')) {
         db.exec('ALTER TABLE campaigns ADD COLUMN imageUrl TEXT');
     }
+    if (!campaignInfo.some(col => col.name === 'blitzMode')) {
+        db.exec('ALTER TABLE campaigns ADD COLUMN blitzMode INTEGER DEFAULT 0');
+    }
 
     // Check contacts for groupId
     const contactInfoGroup = db.pragma('table_info(contacts)') as any[];

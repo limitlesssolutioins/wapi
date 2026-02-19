@@ -36,6 +36,7 @@ type ActiveCampaignState = {
     template: { content: string };
     imageUrl?: string;
     config: WorkerConfig;
+    blitzMode: boolean;
     activeSessionWorkers: Set<string>;
     spawnWorker: (sessionId: string) => void;
 };
@@ -125,16 +126,20 @@ class CampaignQueue {
             return;
         }
 
-        const minDelayMs = parseEnvInt(process.env.CAMPAIGN_DELAY_MIN_MS, 10000);
-        const maxDelayMs = Math.max(minDelayMs, parseEnvInt(process.env.CAMPAIGN_DELAY_MAX_MS, 20000));
+        const globalBlitz = process.env.CAMPAIGN_BLITZ_MODE === 'true';
+        const blitzMode = campaign.blitzMode || globalBlitz;
+
+        const minDelayMs = blitzMode ? 0 : parseEnvInt(process.env.CAMPAIGN_DELAY_MIN_MS, 10000);
+        const maxDelayMs = blitzMode ? 0 : Math.max(minDelayMs, parseEnvInt(process.env.CAMPAIGN_DELAY_MAX_MS, 20000));
         const maxParallelSessions = Math.max(1, parseEnvInt(process.env.CAMPAIGN_MAX_PARALLEL_SESSIONS, sessionIds.length));
         const workerSessionIds = sessionIds.slice(0, Math.min(maxParallelSessions, sessionIds.length));
 
         const config: WorkerConfig = {
             minDelayMs,
             maxDelayMs,
-            batchBreakMinMessages: parseEnvInt(process.env.CAMPAIGN_BATCH_MIN, 12),
-            batchBreakMaxMessages: parseEnvInt(process.env.CAMPAIGN_BATCH_MAX, 18),
+            // In blitz mode, disable batch breaks entirely by setting an unreachable threshold
+            batchBreakMinMessages: blitzMode ? Number.MAX_SAFE_INTEGER : parseEnvInt(process.env.CAMPAIGN_BATCH_MIN, 12),
+            batchBreakMaxMessages: blitzMode ? Number.MAX_SAFE_INTEGER : parseEnvInt(process.env.CAMPAIGN_BATCH_MAX, 18),
             batchBreakMinMs: parseEnvInt(process.env.CAMPAIGN_BATCH_REST_MIN_MS, 120000),
             batchBreakMaxMs: Math.max(
                 parseEnvInt(process.env.CAMPAIGN_BATCH_REST_MIN_MS, 120000),
@@ -148,6 +153,7 @@ class CampaignQueue {
             template,
             imageUrl: campaign.imageUrl,
             config,
+            blitzMode,
             activeSessionWorkers: new Set<string>(),
             spawnWorker: () => {}, // Assigned below
         };
@@ -174,7 +180,7 @@ class CampaignQueue {
         this.activeStates.set(campaignId, state);
 
         console.log(
-            `[Campaign ${campaignId}] Running: ${pendingRecipients.length} pending recipients using ${workerSessionIds.length} parallel sessions.`
+            `[Campaign ${campaignId}] Running: ${pendingRecipients.length} pending recipients using ${workerSessionIds.length} parallel sessions.${blitzMode ? ' [BLITZ MODE]' : ''}`
         );
 
         for (const sessionId of workerSessionIds) {
@@ -249,7 +255,7 @@ class CampaignQueue {
 
             try {
                 const resolvedMessage = this.resolveVariables(state.template.content, recipient);
-                await waService.sendMessage(sessionId, recipient.phone, resolvedMessage, state.imageUrl);
+                await waService.sendMessage(sessionId, recipient.phone, resolvedMessage, state.imageUrl, state.blitzMode);
                 updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
                 this.bumpSessionMetric(campaignId, sessionId, 'sent');
                 messagesSinceBatchBreak++;

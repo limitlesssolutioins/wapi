@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
-import { Send, Search, CheckCircle, AlertTriangle, Clock, Users, History, Loader2, FileText, Trash2, Plus, Eye, ChevronLeft, ChevronRight, X, Pencil, PhoneOff, Copy, FolderInput } from 'lucide-react';
+import { Send, Search, CheckCircle, AlertTriangle, Clock, Users, History, Loader2, FileText, Trash2, Plus, Eye, ChevronLeft, ChevronRight, X, Pencil, PhoneOff, Copy, FolderInput, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Contact {
@@ -106,6 +106,7 @@ export default function Campaigns() {
     const [showSessionDropdown, setShowSessionDropdown] = useState(false);
 
     const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+    const [blitzMode, setBlitzMode] = useState(false);
     const [launching, setLaunching] = useState(false);
 
     const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
@@ -298,7 +299,8 @@ export default function Campaigns() {
                     sessionIds: Array.from(selectedSessions),
                     contactIds: selectionMode === 'manual' ? Array.from(selectedIds) : [],
                     groupId: selectionMode === 'group' ? targetGroupId : null,
-                    imageUrl: imageUrl.trim() || null
+                    imageUrl: imageUrl.trim() || null,
+                    blitzMode,
                 });
                 setActiveCampaign(data);
             }
@@ -834,6 +836,28 @@ export default function Campaigns() {
                             </div>
                         )}
 
+                        {/* Blitz Mode Toggle */}
+                        <button
+                            type="button"
+                            onClick={() => setBlitzMode(prev => !prev)}
+                            className={`w-full mb-2 flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 transition-all text-sm font-medium ${
+                                blitzMode
+                                    ? 'border-red-500 bg-red-50 text-red-700'
+                                    : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
+                            }`}
+                        >
+                            <Zap size={16} className={blitzMode ? 'text-red-500' : 'text-slate-400'} />
+                            <div className="flex-1 text-left">
+                                <span className="block font-bold">{blitzMode ? 'Modo Blitz ACTIVO' : 'Modo Blitz'}</span>
+                                <span className="text-xs font-normal opacity-75">
+                                    {blitzMode ? 'Sin delays. Sin verificación. Envío máximo.' : 'Envío instantáneo, sin delays ni verificación de número'}
+                                </span>
+                            </div>
+                            <div className={`w-10 h-5 rounded-full transition-colors relative ${blitzMode ? 'bg-red-500' : 'bg-slate-300'}`}>
+                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${blitzMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            </div>
+                        </button>
+
                         <div className="flex gap-2">
                             {editingCampaignId && (
                                 <button
@@ -853,7 +877,9 @@ export default function Campaigns() {
                                 onClick={handleLaunch}
                                 disabled={launching || (!editingCampaignId && (selectionMode === 'manual' ? selectedIds.size === 0 : !targetGroupId)) || !message.trim()}
                                 className={`flex-1 py-2 px-4 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
-                                    editingCampaignId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'
+                                    blitzMode
+                                        ? 'bg-red-600 hover:bg-red-700'
+                                        : editingCampaignId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'
                                 } disabled:bg-slate-300 disabled:cursor-not-allowed`}
                             >
                                 {launching ? (
@@ -862,8 +888,11 @@ export default function Campaigns() {
                                     </>
                                 ) : (
                                     <>
-                                        {editingCampaignId ? <Pencil size={16} /> : <Send size={16} />} 
-                                        {editingCampaignId ? 'Actualizar Campaña' : (selectionMode === 'manual' ? `Lanzar Campaña (${selectedIds.size})` : `Lanzar a Grupo (${groups.find(g => g.id === targetGroupId)?.contactCount || 0})`)}
+                                        {blitzMode ? <Zap size={16} /> : editingCampaignId ? <Pencil size={16} /> : <Send size={16} />}
+                                        {blitzMode
+                                            ? `Lanzar BLITZ (${selectionMode === 'manual' ? selectedIds.size : groups.find(g => g.id === targetGroupId)?.contactCount || 0})`
+                                            : editingCampaignId ? 'Actualizar Campaña' : (selectionMode === 'manual' ? `Lanzar Campaña (${selectedIds.size})` : `Lanzar a Grupo (${groups.find(g => g.id === targetGroupId)?.contactCount || 0})`)
+                                        }
                                     </>
                                 )}
                             </button>

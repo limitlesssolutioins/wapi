@@ -15,6 +15,7 @@ export interface Campaign {
     name: string; // The campaign name
     templateId: string;
     imageUrl?: string;
+    blitzMode?: boolean;
     status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED' | 'CANCELLED';
     scheduleTime: string | null;
     stats: {
@@ -95,6 +96,7 @@ export const getCampaignById = (id: string): Campaign | undefined => {
         name: campaignRow.name,
         templateId: campaignRow.templateId,
         imageUrl: campaignRow.imageUrl,
+        blitzMode: campaignRow.blitzMode === 1,
         sessionIds: JSON.parse(campaignRow.sessionIds || '[]'),
         status: campaignRow.status,
         scheduleTime: campaignRow.scheduleTime,
@@ -110,8 +112,8 @@ export const saveCampaign = (campaign: Omit<Campaign, 'id' | 'createdAt' | 'stat
     const now = new Date().toISOString();
 
     const insertCampaign = db.prepare(`
-        INSERT INTO campaigns (id, name, templateId, imageUrl, sessionIds, status, scheduleTime, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO campaigns (id, name, templateId, imageUrl, sessionIds, status, scheduleTime, createdAt, blitzMode)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertRecipient = db.prepare(`
@@ -128,7 +130,8 @@ export const saveCampaign = (campaign: Omit<Campaign, 'id' | 'createdAt' | 'stat
             JSON.stringify(campaign.sessionIds),
             campaign.status,
             campaign.scheduleTime,
-            now
+            now,
+            campaign.blitzMode ? 1 : 0
         );
         for (const r of recipients) {
             insertRecipient.run(id, r.contactId, r.phone, r.name);

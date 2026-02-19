@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { addSessionToCampaign, cancelCampaign, createCampaign, getCampaignProgress as getCampaignDetails, listCampaigns, pauseCampaign, removeSessionFromCampaign, resumeCampaign, updateCampaign } from '../services/campaignService.js';
 
 export const create = (req: Request, res: Response) => {
-    const { name, templateId, imageUrl, contactIds, groupId, sessionId, sessionIds, scheduleTime } = req.body;
+    const { name, templateId, imageUrl, blitzMode, contactIds, groupId, sessionId, sessionIds, scheduleTime } = req.body;
     
     // Normalize sessionIds from either sessionId (old) or sessionIds (new)
     const finalSessionIds = sessionIds && Array.isArray(sessionIds) && sessionIds.length > 0
@@ -16,10 +16,11 @@ export const create = (req: Request, res: Response) => {
     }
 
     try {
-        const campaign = createCampaign({ 
+        const campaign = createCampaign({
             name,
             templateId,
             imageUrl,
+            blitzMode: blitzMode === true || blitzMode === 'true',
             contactIds: contactIds || [],
             groupId: groupId || null,
             sessionIds: finalSessionIds,

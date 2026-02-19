@@ -15,6 +15,7 @@ interface CreateCampaignInput {
     name: string;
     templateId: string;
     imageUrl?: string;
+    blitzMode?: boolean;
     contactIds: string[];
     groupId?: string | null;
     sessionIds: string[];
@@ -22,7 +23,7 @@ interface CreateCampaignInput {
 }
 
 export const createCampaign = (input: CreateCampaignInput): Campaign => {
-    const { name, templateId, imageUrl, contactIds, groupId, sessionIds, scheduleTime } = input;
+    const { name, templateId, imageUrl, blitzMode, contactIds, groupId, sessionIds, scheduleTime } = input;
     const sanitizedSessionIds = (sessionIds || [])
         .map((s) => (s || '').trim())
         .filter((s) => waService.isValidSessionId(s));
@@ -68,6 +69,7 @@ export const createCampaign = (input: CreateCampaignInput): Campaign => {
         name,
         templateId,
         imageUrl,
+        blitzMode: blitzMode ?? false,
         sessionIds: sanitizedSessionIds,
         status,
         scheduleTime,
