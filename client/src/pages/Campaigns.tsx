@@ -1,11 +1,9 @@
-import { useState, useEffect, useRef, useMemo, FC } from 'react';
+import { useState, useEffect, useRef, useMemo, type FC } from 'react';
 import { api } from '../services/api';
-import { 
-    Send, Search, CheckCircle, AlertTriangle, Clock, Users, History, Loader2, FileText, Trash2, Plus, Eye, 
-    ChevronLeft, ChevronRight, X, Pencil, PhoneOff, Copy, FolderInput, Zap, Server, Settings2 
+import {
+    Send, Search, CheckCircle, Users, History, Loader2, Plus, X, Pencil, Zap, Server, Settings2
 } from 'lucide-react';
 import { toast } from 'sonner';
-
 // --- INTERFACES ---
 interface Contact { id: string; name: string; phone: string; }
 interface Group { id: string; name: string; contactCount: number; }
@@ -96,7 +94,7 @@ export default function Campaigns() {
         return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
     }, [activeCampaign]);
 
-    const fetchData = async <T,>(endpoint: string, setter: (data: T) => void, errorMessage: string) => {
+    const fetchData = async <T extends object,>(endpoint: string, setter: (data: T) => void, errorMessage: string) => {
         try {
             const { data } = await api.get<{ data: T } | T>(endpoint);
             // Handle paginated responses
@@ -369,7 +367,20 @@ const Button: FC<{onClick: () => void, disabled?: boolean, children: React.React
 const isTerminalStatus = (status?: string) => ['COMPLETED', 'FAILED', 'CANCELLED'].includes(status || '');
 
 
-const CampaignRecipients: FC<any> = ({ contacts, groups, selectionMode, setSelectionMode, targetGroupId, setTargetGroupId, selectedContactIds, setSelectedContactIds }) => {
+import { useState, useMemo, type FC } from 'react';
+import { Search, CheckCircle } from 'lucide-react'; // Moved here
+
+interface CampaignRecipientsProps {
+    contacts: Contact[];
+    groups: Group[];
+    selectionMode: 'manual' | 'group';
+    setSelectionMode: (mode: 'manual' | 'group') => void;
+    targetGroupId: string;
+    setTargetGroupId: (id: string) => void;
+    selectedContactIds: Set<string>;
+    setSelectedContactIds: (ids: Set<string>) => void;
+}
+const CampaignRecipients: FC<CampaignRecipientsProps> = ({ contacts, groups, selectionMode, setSelectionMode, targetGroupId, setTargetGroupId, selectedContactIds, setSelectedContactIds }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const filteredContacts = useMemo(() => contacts.filter((c: Contact) => 
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.phone.includes(searchTerm)
@@ -424,7 +435,21 @@ const CampaignRecipients: FC<any> = ({ contacts, groups, selectionMode, setSelec
     );
 };
 
-const CampaignMessage: FC<any> = ({ message, setMessage, imageUrl, setImageUrl, templates, onLoadTemplate, fetchTemplates }) => {
+import { useState, useRef, type FC } from 'react';
+import { Plus, Loader2, X, Trash2 } from 'lucide-react'; // Moved here
+import { api } from '../services/api';
+import { toast } from 'sonner';
+
+interface CampaignMessageProps {
+    message: string;
+    setMessage: (message: string) => void;
+    imageUrl: string;
+    setImageUrl: (url: string) => void;
+    templates: MessageTemplate[];
+    onLoadTemplate: (template: MessageTemplate) => void;
+    fetchTemplates: () => void;
+}
+const CampaignMessage: FC<CampaignMessageProps> = ({ message, setMessage, imageUrl, setImageUrl, templates, onLoadTemplate, fetchTemplates }) => {
     const [templateName, setTemplateName] = useState('');
     const [uploading, setUploading] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -491,7 +516,19 @@ const CampaignMessage: FC<any> = ({ message, setMessage, imageUrl, setImageUrl, 
     );
 };
 
-const CampaignOptions: FC<any> = ({ availableSessions, selectedSessions, setSelectedSessions, sessionProxies, setSessionProxies, blitzMode, setBlitzMode }) => {
+import { useState, type FC } from 'react';
+import { Settings2, Zap } from 'lucide-react'; // Moved here
+
+interface CampaignOptionsProps {
+    availableSessions: string[];
+    selectedSessions: Set<string>;
+    setSelectedSessions: (sessions: Set<string>) => void;
+    sessionProxies: Record<string, string>;
+    setSessionProxies: (proxies: Record<string, string>) => void;
+    blitzMode: boolean;
+    setBlitzMode: (mode: boolean) => void;
+}
+const CampaignOptions: FC<CampaignOptionsProps> = ({ availableSessions, selectedSessions, setSelectedSessions, sessionProxies, setSessionProxies, blitzMode, setBlitzMode }) => {
     return (
         <div className="space-y-4">
             <div>
@@ -526,7 +563,16 @@ const CampaignOptions: FC<any> = ({ availableSessions, selectedSessions, setSele
 };
 
 
-const ActiveCampaignMonitor: FC<{campaign: Campaign, onCancel: (id: string) => void, onPause: (id: string) => void, onResume: (id: string) => void}> = ({ campaign, onCancel, onPause, onResume }) => {
+import { useMemo, type FC } from 'react';
+import { CheckCircle, Loader2, AlertTriangle, Clock } from 'lucide-react'; // Moved here
+
+interface ActiveCampaignMonitorProps {
+    campaign: Campaign;
+    onCancel: (id: string) => void;
+    onPause: (id: string) => void;
+    onResume: (id: string) => void;
+}
+const ActiveCampaignMonitor: FC<ActiveCampaignMonitorProps> = ({ campaign, onCancel, onPause, onResume }) => {
     const totals = useMemo(() => {
         if (!campaign) return { total: 0, sent: 0, failed: 0, pending: 0 };
         const total = campaign.stats?.total ?? 0;
@@ -569,7 +615,18 @@ const ActiveCampaignMonitor: FC<{campaign: Campaign, onCancel: (id: string) => v
     );
 };
 
-const CampaignHistory: FC<any> = ({ campaigns, meta, onSelectCampaign, onEditCampaign, onCancelCampaign, onPageChange }) => (
+import { type FC } from 'react';
+import { Pencil, X, ChevronLeft, ChevronRight } from 'lucide-react'; // Moved here
+
+interface CampaignHistoryProps {
+    campaigns: Campaign[];
+    meta: { total: number; page: number; totalPages: number; };
+    onSelectCampaign: (id: string) => void;
+    onEditCampaign: (campaign: Campaign) => void;
+    onCancelCampaign: (id: string) => void;
+    onPageChange: (page: number) => void;
+}
+const CampaignHistory: FC<CampaignHistoryProps> = ({ campaigns, meta, onSelectCampaign, onEditCampaign, onCancelCampaign, onPageChange }) => (
     <div className="divide-y divide-slate-100">
         {campaigns.length === 0 ? <p className="p-4 text-center text-sm text-slate-400">No hay historial.</p> :
             campaigns.map((c: Campaign) => (
