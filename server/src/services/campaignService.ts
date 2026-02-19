@@ -127,6 +127,28 @@ export const getCampaignProgress = (id: string) => {
     };
 };
 
+export const pauseCampaign = (id: string): Campaign => {
+    const campaign = getCampaignFromDb(id);
+    if (!campaign) throw new Error('Campaign not found');
+    if (campaign.status !== 'PROCESSING') {
+        throw new Error('Only PROCESSING campaigns can be paused');
+    }
+    updateCampaignStatus(id, 'PAUSED');
+    // Workers check campaign status every 500ms during delays and will stop automatically
+    return getCampaignFromDb(id)!;
+};
+
+export const resumeCampaign = (id: string): Campaign => {
+    const campaign = getCampaignFromDb(id);
+    if (!campaign) throw new Error('Campaign not found');
+    if (campaign.status !== 'PAUSED') {
+        throw new Error('Only PAUSED campaigns can be resumed');
+    }
+    updateCampaignStatus(id, 'PROCESSING');
+    campaignQueue.enqueue(id);
+    return getCampaignFromDb(id)!;
+};
+
 export const cancelCampaign = (id: string): Campaign => {
     const campaign = getCampaignFromDb(id);
     if (!campaign) {
@@ -139,6 +161,55 @@ export const cancelCampaign = (id: string): Campaign => {
 
     updateCampaignStatus(id, 'CANCELLED');
     return getCampaignFromDb(id)!;
+};
+
+export const addSessionToCampaign = (campaignId: string, sessionId: string): void => {
+    const campaign = getCampaignFromDb(campaignId);
+    if (!campaign) throw new Error('Campaign not found');
+
+    const terminalStatuses = ['COMPLETED', 'CANCELLED', 'FAILED'];
+    if (terminalStatuses.includes(campaign.status)) {
+        throw new Error('Cannot modify a completed, cancelled or failed campaign');
+    }
+
+    const trimmed = (sessionId || '').trim();
+    if (!waService.isValidSessionId(trimmed)) {
+        throw new Error('Invalid session ID');
+    }
+
+    if (campaign.sessionIds.includes(trimmed)) {
+        throw new Error('Session already assigned to this campaign');
+    }
+
+    const newSessionIds = [...campaign.sessionIds, trimmed];
+    updateCampaignDetails(campaignId, { sessionIds: newSessionIds });
+
+    // If the campaign is actively processing, spawn a new worker immediately
+    if (campaign.status === 'PROCESSING') {
+        campaignQueue.addSessionToCampaign(campaignId, trimmed);
+    }
+};
+
+export const removeSessionFromCampaign = (campaignId: string, sessionId: string): void => {
+    const campaign = getCampaignFromDb(campaignId);
+    if (!campaign) throw new Error('Campaign not found');
+
+    const terminalStatuses = ['COMPLETED', 'CANCELLED', 'FAILED'];
+    if (terminalStatuses.includes(campaign.status)) {
+        throw new Error('Cannot modify a completed, cancelled or failed campaign');
+    }
+
+    if (!campaign.sessionIds.includes(sessionId)) {
+        throw new Error('Session not found in this campaign');
+    }
+
+    if (campaign.sessionIds.length <= 1) {
+        throw new Error('Cannot remove the last session from a campaign');
+    }
+
+    const newSessionIds = campaign.sessionIds.filter((s) => s !== sessionId);
+    updateCampaignDetails(campaignId, { sessionIds: newSessionIds });
+    // The queue worker for this session will detect the removal on its next loop iteration
 };
 
 export const listCampaigns = (page: number, limit: number) => {

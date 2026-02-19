@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { cancelCampaign, createCampaign, getCampaignProgress as getCampaignDetails, listCampaigns, updateCampaign } from '../services/campaignService.js';
+import { addSessionToCampaign, cancelCampaign, createCampaign, getCampaignProgress as getCampaignDetails, listCampaigns, pauseCampaign, removeSessionFromCampaign, resumeCampaign, updateCampaign } from '../services/campaignService.js';
 
 export const create = (req: Request, res: Response) => {
     const { name, templateId, imageUrl, contactIds, groupId, sessionId, sessionIds, scheduleTime } = req.body;
@@ -81,6 +81,59 @@ export const cancel = (req: Request, res: Response) => {
         res.json(campaign);
     } catch (error) {
         console.error('Campaign cancellation failed:', error);
+        const msg = error instanceof Error ? error.message : 'An unknown error occurred';
+        res.status(400).json({ error: msg });
+    }
+};
+
+export const pause = (req: Request, res: Response) => {
+    const { id } = req.params;
+    try {
+        const campaign = pauseCampaign(id as string);
+        res.json(campaign);
+    } catch (error) {
+        const msg = error instanceof Error ? error.message : 'An unknown error occurred';
+        res.status(400).json({ error: msg });
+    }
+};
+
+export const resume = (req: Request, res: Response) => {
+    const { id } = req.params;
+    try {
+        const campaign = resumeCampaign(id as string);
+        res.json(campaign);
+    } catch (error) {
+        const msg = error instanceof Error ? error.message : 'An unknown error occurred';
+        res.status(400).json({ error: msg });
+    }
+};
+
+export const addSession = (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { sessionId } = req.body;
+
+    if (!sessionId) {
+        return res.status(400).json({ error: 'sessionId is required' });
+    }
+
+    try {
+        addSessionToCampaign(id as string, sessionId);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Add session failed:', error);
+        const msg = error instanceof Error ? error.message : 'An unknown error occurred';
+        res.status(400).json({ error: msg });
+    }
+};
+
+export const removeSession = (req: Request, res: Response) => {
+    const { id, sessionId } = req.params;
+
+    try {
+        removeSessionFromCampaign(id as string, sessionId as string);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Remove session failed:', error);
         const msg = error instanceof Error ? error.message : 'An unknown error occurred';
         res.status(400).json({ error: msg });
     }

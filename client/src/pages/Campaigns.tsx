@@ -121,7 +121,7 @@ export default function Campaigns() {
     const isTerminalStatus = (status?: string) =>
         status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED';
     const canCancelCampaign = (status?: string) =>
-        status === 'QUEUED' || status === 'PROCESSING';
+        status === 'QUEUED' || status === 'PROCESSING' || status === 'PAUSED';
 
     const [templates, setTemplates] = useState<MessageTemplate[]>([]);
     const [templateName, setTemplateName] = useState('');
@@ -445,6 +445,52 @@ export default function Campaigns() {
         } catch (err) {
             console.error('Failed to cancel campaign', err);
             toast.error('No se pudo cancelar la campana');
+        }
+    };
+
+    const handlePauseCampaign = async (campaignId: string) => {
+        try {
+            await api.post(`/api/campaigns/${campaignId}/pause`);
+            toast.success('Campaña pausada');
+            const { data } = await api.get<Campaign>(`/api/campaigns/${campaignId}`);
+            setActiveCampaign(data);
+        } catch (err) {
+            console.error('Failed to pause campaign', err);
+            toast.error('No se pudo pausar la campaña');
+        }
+    };
+
+    const handleResumeCampaign = async (campaignId: string) => {
+        try {
+            await api.post(`/api/campaigns/${campaignId}/resume`);
+            toast.success('Campaña reanudada');
+            const { data } = await api.get<Campaign>(`/api/campaigns/${campaignId}`);
+            setActiveCampaign(data);
+        } catch (err) {
+            console.error('Failed to resume campaign', err);
+            toast.error('No se pudo reanudar la campaña');
+        }
+    };
+
+    const handleAddSession = async (campaignId: string, sessionId: string) => {
+        try {
+            await api.post(`/api/campaigns/${campaignId}/sessions`, { sessionId });
+            toast.success(`Línea "${sessionId}" agregada`);
+            const { data } = await api.get<Campaign>(`/api/campaigns/${campaignId}`);
+            setActiveCampaign(data);
+        } catch (err: any) {
+            toast.error(err?.response?.data?.error || 'No se pudo agregar la línea');
+        }
+    };
+
+    const handleRemoveSession = async (campaignId: string, sessionId: string) => {
+        try {
+            await api.delete(`/api/campaigns/${campaignId}/sessions/${encodeURIComponent(sessionId)}`);
+            toast.success(`Línea "${sessionId}" quitada`);
+            const { data } = await api.get<Campaign>(`/api/campaigns/${campaignId}`);
+            setActiveCampaign(data);
+        } catch (err: any) {
+            toast.error(err?.response?.data?.error || 'No se pudo quitar la línea');
         }
     };
 
@@ -850,12 +896,30 @@ export default function Campaigns() {
                                 </span>
                             </h3>
                             {canCancelCampaign(activeCampaign.status) && (
-                                <button
-                                    onClick={() => handleCancelCampaign(activeCampaign.id)}
-                                    className="mb-4 px-3 py-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors text-sm font-medium"
-                                >
-                                    Cancelar campana
-                                </button>
+                                <div className="mb-4 flex gap-2 flex-wrap">
+                                    {activeCampaign.status === 'PROCESSING' && (
+                                        <button
+                                            onClick={() => handlePauseCampaign(activeCampaign.id)}
+                                            className="px-3 py-1.5 rounded-lg bg-yellow-100 text-yellow-700 hover:bg-yellow-200 transition-colors text-sm font-medium"
+                                        >
+                                            ⏸ Pausar
+                                        </button>
+                                    )}
+                                    {activeCampaign.status === 'PAUSED' && (
+                                        <button
+                                            onClick={() => handleResumeCampaign(activeCampaign.id)}
+                                            className="px-3 py-1.5 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition-colors text-sm font-medium"
+                                        >
+                                            ▶ Reanudar
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => handleCancelCampaign(activeCampaign.id)}
+                                        className="px-3 py-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors text-sm font-medium"
+                                    >
+                                        ✕ Cancelar
+                                    </button>
+                                </div>
                             )}
 
                             {/* Progress bar */}
@@ -896,32 +960,66 @@ export default function Campaigns() {
                                 </div>
                             </div>
 
-                            {activeCampaign.runtimeBySession && Object.keys(activeCampaign.runtimeBySession).length > 0 && (
+                            {/* Session management — shown for all non-terminal campaigns */}
+                            {!isTerminalStatus(activeCampaign.status) && (activeCampaign.sessionIds?.length ?? 0) > 0 && (
                                 <div className="mb-4 border border-slate-200 rounded-lg overflow-hidden">
-                                    <div className="px-3 py-2 bg-slate-50 text-xs font-bold text-slate-600 uppercase tracking-wide">
-                                        Rendimiento por linea
+                                    <div className="px-3 py-2 bg-slate-50 flex items-center justify-between gap-2">
+                                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                                            Líneas de envío ({activeCampaign.sessionIds?.length ?? 0})
+                                        </span>
+                                        {availableSessions.filter(s => !activeCampaign.sessionIds?.includes(s)).length > 0 && (
+                                            <select
+                                                defaultValue=""
+                                                onChange={async (e) => {
+                                                    if (!e.target.value) return;
+                                                    await handleAddSession(activeCampaign.id, e.target.value);
+                                                    e.target.value = '';
+                                                }}
+                                                className="text-xs border border-blue-300 rounded px-2 py-1 text-blue-700 bg-blue-50 outline-none focus:border-blue-500 cursor-pointer"
+                                            >
+                                                <option value="">+ Agregar línea</option>
+                                                {availableSessions
+                                                    .filter(s => !activeCampaign.sessionIds?.includes(s))
+                                                    .map(s => (
+                                                        <option key={s} value={s}>{s}</option>
+                                                    ))}
+                                            </select>
+                                        )}
                                     </div>
                                     <div className="divide-y divide-slate-100">
-                                        {Object.entries(activeCampaign.runtimeBySession)
-                                            .sort((a, b) => (b[1].sent + b[1].failed) - (a[1].sent + a[1].failed))
-                                            .map(([sessionId, row]) => (
+                                        {(activeCampaign.sessionIds ?? []).map(sessionId => {
+                                            const row = activeCampaign.runtimeBySession?.[sessionId];
+                                            const canRemove = (activeCampaign.sessionIds?.length ?? 0) > 1;
+                                            return (
                                                 <div key={sessionId} className="px-3 py-2 text-xs text-slate-600">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <span className="font-semibold text-slate-700">{sessionId}</span>
-                                                        <span className="text-green-600">{row.sent} enviados</span>
-                                                        <span className="text-red-500">{row.failed} fallidos</span>
-                                                        <span className="text-slate-400">{(row.sent + row.failed)} procesados</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-semibold text-slate-700 flex-1 truncate">{sessionId}</span>
+                                                        {row ? (
+                                                            <>
+                                                                <span className="text-green-600">{row.sent} env.</span>
+                                                                <span className="text-red-500">{row.failed} fall.</span>
+                                                                <span className="text-slate-400">{((row.sent + row.failed) / elapsedMinutes).toFixed(1)}/min</span>
+                                                            </>
+                                                        ) : (
+                                                            <span className="text-slate-400">En espera...</span>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleRemoveSession(activeCampaign.id, sessionId)}
+                                                            disabled={!canRemove}
+                                                            className="ml-1 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                                                            title={canRemove ? 'Quitar línea' : 'No se puede quitar la última línea'}
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
                                                     </div>
-                                                    <div className="mt-1 text-slate-400">
-                                                        Velocidad: {((row.sent + row.failed) / elapsedMinutes).toFixed(2)} msg/min
-                                                    </div>
-                                                    {row.lastError && (
-                                                        <div className="mt-1 text-red-500 truncate" title={row.lastError}>
-                                                            Ultimo error: {row.lastError}
+                                                    {row?.lastError && (
+                                                        <div className="mt-0.5 text-red-400 truncate" title={row.lastError}>
+                                                            {row.lastError}
                                                         </div>
                                                     )}
                                                 </div>
-                                            ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
