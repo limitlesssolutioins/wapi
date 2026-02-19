@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, type FC, type Dispatch, type SetS
 import { api } from '../services/api';
 import {
     Send, Search, CheckCircle, Users, History, Loader2, Plus, X, Pencil, Zap, Server, Settings2,
-    AlertTriangle, Clock, ChevronLeft, ChevronRight, Trash2, Eye
+    ChevronLeft, ChevronRight, Trash2, Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 
