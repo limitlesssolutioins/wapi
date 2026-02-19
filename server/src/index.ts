@@ -94,7 +94,7 @@ app.get('/api/stats', protect, (_req, res) => {
     const activeCampaigns = campaigns.filter(c => c.status === 'PROCESSING' || c.status === 'QUEUED').length;
     const totalContacts = contacts.length;
 
-    const recentMessages = history.slice(-10).reverse();
+    const recentMessages = history.filter(h => h.status === 'SENT').slice(-10).reverse();
 
     res.json({
         sentCount,
