@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, type FC, type Dispatch, type SetS
 import { api } from '../services/api';
 import {
     Send, Search, CheckCircle, Users, History, Loader2, Plus, X, Pencil, Zap, Server, Settings2,
-    AlertTriangle, Clock, ChevronLeft, ChevronRight, Trash2
+    AlertTriangle, Clock, ChevronLeft, ChevronRight, Trash2, Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -378,12 +378,12 @@ interface CampaignRecipientsProps {
     targetGroupId: string;
     setTargetGroupId: (id: string) => void;
     selectedContactIds: Set<string>;
-    setSelectedContactIds: React.Dispatch<React.SetStateAction<Set<string>>>; // Allow functional updates
+    setSelectedContactIds: Dispatch<SetStateAction<Set<string>>>;
 }
 
 interface CampaignMessageProps {
     message: string;
-    setMessage: (message: string) => void;
+    setMessage: Dispatch<SetStateAction<string>>;
     imageUrl: string;
     setImageUrl: (url: string) => void;
     templates: MessageTemplate[];
@@ -396,11 +396,11 @@ interface CampaignMessageProps {
 interface CampaignOptionsProps {
     availableSessions: string[];
     selectedSessions: Set<string>;
-    setSelectedSessions: React.Dispatch<React.SetStateAction<Set<string>>>;
+    setSelectedSessions: Dispatch<SetStateAction<Set<string>>>;
     sessionProxies: Record<string, string>;
-    setSessionProxies: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+    setSessionProxies: Dispatch<SetStateAction<Record<string, string>>>;
     blitzMode: boolean;
-    setBlitzMode: React.Dispatch<React.SetStateAction<boolean>>;
+    setBlitzMode: Dispatch<SetStateAction<boolean>>;
 }
 
 interface ActiveCampaignMonitorProps {
@@ -450,7 +450,7 @@ const CampaignRecipients: FC<CampaignRecipientsProps> = ({ contacts, groups, sel
                     <div className="max-h-[400px] overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
                         {filteredContacts.map((c: Contact) => (
                             <label key={c.id} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer transition-colors">
-                                <input type="checkbox" checked={selectedContactIds.has(c.id)} onChange={() => setSelectedContactIds((prev: Set<string>) => { const next = new Set(prev); if (next.has(c.id)) next.delete(c.id); else next.add(c.id); return next; })} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                <input type="checkbox" checked={selectedContactIds.has(c.id)} onChange={() => setSelectedContactIds((prev) => { const next = new Set(prev); if (next.has(c.id)) next.delete(c.id); else next.add(c.id); return next; })} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                                 <div>
                                     <p className="text-sm font-medium text-slate-800">{c.name}</p>
                                     <p className="text-xs text-slate-500">{c.phone}</p>
@@ -507,7 +507,7 @@ const CampaignMessage: FC<CampaignMessageProps> = ({ message, setMessage, imageU
     const previewMessage = useMemo(() => {
         if (!message) return '';
         const firstContactId = Array.from(selectedContactIds)[0];
-        const contact = contacts.find(c => c.id === firstContactId) || { name: 'Ejemplo', phone: '1234567890' };
+        const contact = contacts.find(c => c.id === firstContactId) || { name: 'Ejemplo', phone: '1234567890' } as Contact;
         
         let content = message;
         // Spintax simplified preview (takes first option)
@@ -575,7 +575,7 @@ const CampaignOptions: FC<CampaignOptionsProps> = ({ availableSessions, selected
                     {availableSessions.map((s: string) => (
                         <div key={s}>
                             <label className="flex items-center gap-3 px-2 py-1.5 hover:bg-slate-50 rounded-lg">
-                                <input type="checkbox" checked={selectedSessions.has(s)} onChange={() => setSelectedSessions((prev: Set<string>) => { const next = new Set(prev); if (next.has(s)) { if (next.size > 1) next.delete(s); } else next.add(s); return next; })} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                <input type="checkbox" checked={selectedSessions.has(s)} onChange={() => setSelectedSessions((prev) => { const next = new Set(prev); if (next.has(s)) { if (next.size > 1) next.delete(s); } else next.add(s); return next; })} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                                 <span className="text-sm text-slate-700 font-medium">{s}</span>
                             </label>
                             {selectedSessions.has(s) && (
@@ -588,7 +588,7 @@ const CampaignOptions: FC<CampaignOptionsProps> = ({ availableSessions, selected
                     ))}
                 </div>
             </div>
-            <button type="button" onClick={() => setBlitzMode((p: boolean) => !p)} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 transition-all text-sm font-medium ${blitzMode ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
+            <button type="button" onClick={() => setBlitzMode((p) => !p)} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border-2 transition-all text-sm font-medium ${blitzMode ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
                 <Zap size={16} className={blitzMode ? 'text-red-500' : 'text-slate-400'} />
                 <div className="flex-1 text-left">
                     <span className="block font-bold">{blitzMode ? 'Modo Blitz ACTIVO' : 'Modo Blitz'}</span>
