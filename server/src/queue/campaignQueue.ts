@@ -1,14 +1,8 @@
 import { waService } from '../services/whatsappService.js';
-import { CampaignRecipient, getCampaignById, getPendingRecipients, updateCampaignStatus, updateRecipientStatus } from '../utils/campaigns.js';
+import { getCampaignById, updateCampaignStatus, updateRecipientStatus } from '../utils/campaigns.js';
 import { getTemplateById } from '../utils/templates.js';
 
-const parseEnvInt = (value: string | undefined, fallback: number): number => {
-    if (!value) return fallback;
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-};
-
-type SessionRuntimeMetrics = {
+type SessionMetrics = {
     sent: number;
     failed: number;
     lastError?: string;
@@ -17,41 +11,21 @@ type SessionRuntimeMetrics = {
 
 type CampaignRuntimeMetrics = {
     startedAt: string;
-    bySession: Record<string, SessionRuntimeMetrics>;
+    bySession: Record<string, SessionMetrics>;
     errorCounts: Record<string, number>;
 };
 
-type WorkerConfig = {
-    minDelayMs: number;
-    maxDelayMs: number;
-    batchBreakMinMessages: number;
-    batchBreakMaxMessages: number;
-    batchBreakMinMs: number;
-    batchBreakMaxMs: number;
-};
-
-type ActiveCampaignState = {
-    pendingRecipients: CampaignRecipient[];
-    nextIndex: number;
-    template: { content: string };
-    imageUrl?: string;
-    config: WorkerConfig;
-    blitzMode: boolean;
-    activeSessionWorkers: Set<string>;
-    spawnWorker: (sessionId: string) => void;
-};
+// Rotate session every N messages to give each number a natural rest
+const ROTATION_LIMIT = 15;
 
 class CampaignQueue {
     private queue: string[] = [];
     private queuedIds = new Set<string>();
     private processing = false;
     private runtimeByCampaign = new Map<string, CampaignRuntimeMetrics>();
-    private activeStates = new Map<string, ActiveCampaignState>();
 
     enqueue(campaignId: string): void {
-        if (this.queuedIds.has(campaignId)) {
-            return;
-        }
+        if (this.queuedIds.has(campaignId)) return;
 
         this.queue.push(campaignId);
         this.queuedIds.add(campaignId);
@@ -61,11 +35,8 @@ class CampaignQueue {
         }
     }
 
-    /** Spawns a new worker for the given session on an already-running campaign. */
-    addSessionToCampaign(campaignId: string, sessionId: string): boolean {
-        const state = this.activeStates.get(campaignId);
-        if (!state) return false;
-        state.spawnWorker(sessionId);
+    /** No-op in sequential mode — sessions are picked up from DB on next rotation. */
+    addSessionToCampaign(_campaignId: string, _sessionId: string): boolean {
         return true;
     }
 
@@ -84,40 +55,32 @@ class CampaignQueue {
 
     private async processCampaign(campaignId: string): Promise<void> {
         console.log(`[Campaign ${campaignId}] Processing started...`);
+
         const campaign = getCampaignById(campaignId);
         if (!campaign) {
-            console.error(`[Campaign ${campaignId}] Error: Campaign not found in database.`);
+            console.error(`[Campaign ${campaignId}] Not found.`);
             return;
         }
 
         const template = getTemplateById(campaign.templateId);
         if (!template) {
-            console.error(`[Campaign ${campaignId}] Error: Template ${campaign.templateId} not found.`);
+            console.error(`[Campaign ${campaignId}] Template ${campaign.templateId} not found.`);
             updateCampaignStatus(campaignId, 'FAILED');
             return;
         }
 
         if (!campaign.recipients || campaign.recipients.length === 0) {
-            console.log(`[Campaign ${campaignId}] No recipients found. Completing.`);
             updateCampaignStatus(campaignId, 'COMPLETED');
             return;
         }
 
         if (campaign.status !== 'QUEUED' && campaign.status !== 'PROCESSING') {
-            console.log(`[Campaign ${campaignId}] Skipping: Invalid status (${campaign.status}).`);
+            console.log(`[Campaign ${campaignId}] Skipping: status is ${campaign.status}.`);
             return;
         }
 
         if (campaign.status === 'QUEUED') {
             updateCampaignStatus(campaignId, 'PROCESSING');
-            campaign.status = 'PROCESSING';
-        }
-
-        const sessionIds = (campaign.sessionIds || []).filter((s) => waService.isValidSessionId(s));
-        if (sessionIds.length === 0) {
-            console.error(`[Campaign ${campaignId}] Error: No sessions assigned.`);
-            updateCampaignStatus(campaignId, 'FAILED');
-            return;
         }
 
         const pendingRecipients = campaign.recipients.filter((r) => r.status === 'PENDING');
@@ -126,168 +89,92 @@ class CampaignQueue {
             return;
         }
 
-        const globalBlitz = process.env.CAMPAIGN_BLITZ_MODE === 'true';
-        const blitzMode = campaign.blitzMode || globalBlitz;
-
-        const minDelayMs = blitzMode ? 0 : parseEnvInt(process.env.CAMPAIGN_DELAY_MIN_MS, 10000);
-        const maxDelayMs = blitzMode ? 0 : Math.max(minDelayMs, parseEnvInt(process.env.CAMPAIGN_DELAY_MAX_MS, 20000));
-        const maxParallelSessions = Math.max(1, parseEnvInt(process.env.CAMPAIGN_MAX_PARALLEL_SESSIONS, sessionIds.length));
-        const workerSessionIds = sessionIds.slice(0, Math.min(maxParallelSessions, sessionIds.length));
-
-        const config: WorkerConfig = {
-            minDelayMs,
-            maxDelayMs,
-            // In blitz mode, disable batch breaks entirely by setting an unreachable threshold
-            batchBreakMinMessages: blitzMode ? Number.MAX_SAFE_INTEGER : parseEnvInt(process.env.CAMPAIGN_BATCH_MIN, 12),
-            batchBreakMaxMessages: blitzMode ? Number.MAX_SAFE_INTEGER : parseEnvInt(process.env.CAMPAIGN_BATCH_MAX, 18),
-            batchBreakMinMs: parseEnvInt(process.env.CAMPAIGN_BATCH_REST_MIN_MS, 120000),
-            batchBreakMaxMs: Math.max(
-                parseEnvInt(process.env.CAMPAIGN_BATCH_REST_MIN_MS, 120000),
-                parseEnvInt(process.env.CAMPAIGN_BATCH_REST_MAX_MS, 240000)
-            ),
-        };
-
-        const state: ActiveCampaignState = {
-            pendingRecipients,
-            nextIndex: 0,
-            template,
-            imageUrl: campaign.imageUrl,
-            config,
-            blitzMode,
-            activeSessionWorkers: new Set<string>(),
-            spawnWorker: () => {}, // Assigned below
-        };
-
-        // Counter + promise to track when all workers (including dynamically added ones) finish
-        let activeWorkerCount = 0;
-        let allDoneResolve!: () => void;
-        const allDonePromise = new Promise<void>((r) => { allDoneResolve = r; });
-
-        const spawnWorker = (sessionId: string) => {
-            if (state.activeSessionWorkers.has(sessionId)) return;
-            if (!waService.isValidSessionId(sessionId)) return;
-            state.activeSessionWorkers.add(sessionId);
-            activeWorkerCount++;
-            this.initializeRuntimeMetrics(campaignId, [sessionId]);
-            void this.runWorkerLoop(campaignId, sessionId, state).finally(() => {
-                state.activeSessionWorkers.delete(sessionId);
-                activeWorkerCount--;
-                if (activeWorkerCount === 0) allDoneResolve();
-            });
-        };
-
-        state.spawnWorker = spawnWorker;
-        this.activeStates.set(campaignId, state);
-
-        console.log(
-            `[Campaign ${campaignId}] Running: ${pendingRecipients.length} pending recipients using ${workerSessionIds.length} parallel sessions.${blitzMode ? ' [BLITZ MODE]' : ''}`
-        );
-
-        for (const sessionId of workerSessionIds) {
-            spawnWorker(sessionId);
-        }
-
-        if (activeWorkerCount > 0) {
-            await allDonePromise;
-        }
-
-        this.activeStates.delete(campaignId);
-
-        const statusAfterWorkers = getCampaignById(campaignId)?.status;
-        if (statusAfterWorkers === 'PAUSED' || statusAfterWorkers === 'FAILED' || statusAfterWorkers === 'CANCELLED') {
-            console.log(`[Campaign ${campaignId}] Stopped with status ${statusAfterWorkers}.`);
+        // Initialize metrics
+        const sessionIds = (campaign.sessionIds || []).filter((s) => waService.isValidSessionId(s));
+        if (sessionIds.length === 0) {
+            console.error(`[Campaign ${campaignId}] No valid sessions assigned.`);
+            updateCampaignStatus(campaignId, 'FAILED');
             return;
         }
 
-        const stillPending = getPendingRecipients(campaignId).length;
-        if (stillPending === 0) {
-            updateCampaignStatus(campaignId, 'COMPLETED');
-        }
+        this.runtimeByCampaign.set(campaignId, {
+            startedAt: new Date().toISOString(),
+            bySession: Object.fromEntries(sessionIds.map((s) => [s, { sent: 0, failed: 0 }])),
+            errorCounts: {},
+        });
 
-        console.log(`[Campaign ${campaignId}] Finished.`);
-    }
+        console.log(
+            `[Campaign ${campaignId}] ${pendingRecipients.length} recipients, sessions: [${sessionIds.join(', ')}], rotating every ${ROTATION_LIMIT} messages.`
+        );
 
-    private async runWorkerLoop(
-        campaignId: string,
-        sessionId: string,
-        state: ActiveCampaignState
-    ): Promise<void> {
-        let messagesSinceBatchBreak = 0;
-        const { config } = state;
-        const nextBatchBreakAt = () =>
-            Math.floor(Math.random() * (config.batchBreakMaxMessages - config.batchBreakMinMessages + 1)) +
-            config.batchBreakMinMessages;
-        let currentBatchLimit = nextBatchBreakAt();
+        let currentSessionIndex = 0;
+        let messagesSentOnCurrentSession = 0;
 
-        while (true) {
-            if (this.isCampaignStopped(campaignId)) return;
+        for (let i = 0; i < pendingRecipients.length; i++) {
+            const recipient = pendingRecipients[i];
 
-            if (this.isSessionRemoved(campaignId, sessionId)) {
-                console.log(`[Campaign ${campaignId}] [${sessionId}] Session removed, worker stopping.`);
+            // Check campaign status every 5 messages
+            if (i % 5 === 0) {
+                const status = getCampaignById(campaignId)?.status;
+                if (status === 'PAUSED' || status === 'FAILED' || status === 'CANCELLED') {
+                    console.log(`[Campaign ${campaignId}] Stopped: status changed to ${status}.`);
+                    return;
+                }
+            }
+
+            // Re-read session list from DB (supports adding/removing sessions mid-campaign)
+            const activeSessions = (getCampaignById(campaignId)?.sessionIds || []).filter((s) =>
+                waService.isValidSessionId(s)
+            );
+            if (activeSessions.length === 0) {
+                console.error(`[Campaign ${campaignId}] No sessions remaining. Failing.`);
+                updateCampaignStatus(campaignId, 'FAILED');
                 return;
             }
 
-            const recipient = this.getNextRecipient(state);
-            if (!recipient) return;
+            // Rotate session after ROTATION_LIMIT messages
+            if (messagesSentOnCurrentSession >= ROTATION_LIMIT && activeSessions.length > 1) {
+                messagesSentOnCurrentSession = 0;
+                currentSessionIndex = (currentSessionIndex + 1) % activeSessions.length;
+                console.log(`[Campaign ${campaignId}] Rotated to session: ${activeSessions[currentSessionIndex]}`);
+            }
 
-            if (messagesSinceBatchBreak >= currentBatchLimit) {
-                const restMs =
-                    Math.floor(Math.random() * (config.batchBreakMaxMs - config.batchBreakMinMs + 1)) +
-                    config.batchBreakMinMs;
-                const restSec = Math.round(restMs / 1000);
-                console.log(
-                    `[Campaign ${campaignId}] [${sessionId}] Batch break: ${messagesSinceBatchBreak} msgs sent, resting ${restSec}s...`
-                );
-                const canContinue = await this.sleepWithStatusCheck(campaignId, restMs, restMs);
+            const currentSessionId = activeSessions[currentSessionIndex % activeSessions.length];
+
+            // Delay between messages (skip before the very first)
+            if (i > 0) {
+                const canContinue = await this.sleepWithStatusCheck(campaignId, 10000, 20000);
                 if (!canContinue) return;
-                messagesSinceBatchBreak = 0;
-                currentBatchLimit = nextBatchBreakAt();
-            }
-
-            const canContinue = await this.sleepWithStatusCheck(campaignId, config.minDelayMs, config.maxDelayMs);
-            if (!canContinue) return;
-
-            // Check again after sleep — session may have been removed during the delay
-            if (this.isSessionRemoved(campaignId, sessionId)) {
-                console.log(`[Campaign ${campaignId}] [${sessionId}] Session removed during delay, worker stopping.`);
-                return;
             }
 
             try {
-                const resolvedMessage = this.resolveVariables(state.template.content, recipient);
-                await waService.sendMessage(sessionId, recipient.phone, resolvedMessage, state.imageUrl, state.blitzMode);
+                const resolvedMessage = this.resolveVariables(template.content, recipient);
+                await waService.sendMessage(currentSessionId, recipient.phone, resolvedMessage, campaign.imageUrl);
                 updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
-                this.bumpSessionMetric(campaignId, sessionId, 'sent');
-                messagesSinceBatchBreak++;
+                messagesSentOnCurrentSession++;
+                this.bumpMetric(campaignId, currentSessionId, 'sent');
                 console.log(
-                    `[Campaign ${campaignId}] [${sessionId}] Sent to ${recipient.phone} (batch ${messagesSinceBatchBreak}/${currentBatchLimit})`
+                    `[Campaign ${campaignId}] [${i + 1}/${pendingRecipients.length}] [${currentSessionId}] Sent to ${recipient.phone}`
                 );
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 updateRecipientStatus(campaignId, recipient.contactId, 'FAILED', errorMsg);
-                messagesSinceBatchBreak++;
-                this.bumpSessionMetric(campaignId, sessionId, 'failed', errorMsg);
+                this.bumpMetric(campaignId, currentSessionId, 'failed', errorMsg);
                 console.error(
-                    `[Campaign ${campaignId}] [${sessionId}] Failed for ${recipient.phone}: ${errorMsg}`
+                    `[Campaign ${campaignId}] [${i + 1}/${pendingRecipients.length}] Failed for ${recipient.phone}: ${errorMsg}`
                 );
+
+                // Rotate immediately if the session disconnected and there are alternatives
+                if (errorMsg.includes('disconnected') && activeSessions.length > 1) {
+                    currentSessionIndex = (currentSessionIndex + 1) % activeSessions.length;
+                    messagesSentOnCurrentSession = 0;
+                    console.log(`[Campaign ${campaignId}] Session error — rotated to: ${activeSessions[currentSessionIndex]}`);
+                }
             }
         }
-    }
 
-    private isCampaignStopped(campaignId: string): boolean {
-        const status = getCampaignById(campaignId)?.status;
-        return status === 'PAUSED' || status === 'FAILED' || status === 'CANCELLED';
-    }
-
-    private isSessionRemoved(campaignId: string, sessionId: string): boolean {
-        const campaign = getCampaignById(campaignId);
-        if (!campaign) return true;
-        return !campaign.sessionIds.includes(sessionId);
-    }
-
-    private getNextRecipient(state: ActiveCampaignState): CampaignRecipient | undefined {
-        if (state.nextIndex >= state.pendingRecipients.length) return undefined;
-        return state.pendingRecipients[state.nextIndex++];
+        updateCampaignStatus(campaignId, 'COMPLETED');
+        console.log(`[Campaign ${campaignId}] Finished.`);
     }
 
     private resolveVariables(templateContent: string, recipient: { name: string; phone: string }): string {
@@ -296,13 +183,9 @@ class CampaignQueue {
             .replace(/\{\{phone\}\}/g, recipient.phone);
     }
 
-    private async sleepWithStatusCheck(campaignId: string, minDelayMs: number, maxDelayMs: number): Promise<boolean> {
-        if (maxDelayMs <= 0) return true;
-
+    private async sleepWithStatusCheck(campaignId: string, minMs: number, maxMs: number): Promise<boolean> {
         const targetDelay =
-            minDelayMs >= maxDelayMs
-                ? minDelayMs
-                : Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+            minMs >= maxMs ? minMs : Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 
         const checkEveryMs = 500;
         let elapsed = 0;
@@ -312,8 +195,8 @@ class CampaignQueue {
             await this.sleep(step);
             elapsed += step;
 
-            const currentStatus = getCampaignById(campaignId)?.status;
-            if (currentStatus === 'PAUSED' || currentStatus === 'FAILED' || currentStatus === 'CANCELLED') {
+            const status = getCampaignById(campaignId)?.status;
+            if (status === 'PAUSED' || status === 'FAILED' || status === 'CANCELLED') {
                 return false;
             }
         }
@@ -329,44 +212,27 @@ class CampaignQueue {
         return this.runtimeByCampaign.get(campaignId);
     }
 
-    private initializeRuntimeMetrics(campaignId: string, sessionIds: string[]): void {
-        const existing = this.runtimeByCampaign.get(campaignId) ?? {
-            startedAt: new Date().toISOString(),
-            bySession: {},
-            errorCounts: {},
-        };
-        for (const sessionId of sessionIds) {
-            if (!existing.bySession[sessionId]) {
-                existing.bySession[sessionId] = { sent: 0, failed: 0 };
-            }
-        }
-        this.runtimeByCampaign.set(campaignId, existing);
-    }
-
-    private bumpSessionMetric(
+    private bumpMetric(
         campaignId: string,
         sessionId: string,
         type: 'sent' | 'failed',
         lastError?: string
     ): void {
-        const metrics = this.runtimeByCampaign.get(campaignId) ?? {
-            startedAt: new Date().toISOString(),
-            bySession: {},
-            errorCounts: {},
-        };
+        const metrics = this.runtimeByCampaign.get(campaignId);
+        if (!metrics) return;
+
         if (!metrics.bySession[sessionId]) {
             metrics.bySession[sessionId] = { sent: 0, failed: 0 };
         }
 
         metrics.bySession[sessionId][type] += 1;
         metrics.bySession[sessionId].lastActivityAt = new Date().toISOString();
-        if (type === 'failed') {
+
+        if (type === 'failed' && lastError) {
             metrics.bySession[sessionId].lastError = lastError;
-            const key = (lastError || 'Unknown error').slice(0, 120);
+            const key = lastError.slice(0, 120);
             metrics.errorCounts[key] = (metrics.errorCounts[key] || 0) + 1;
         }
-
-        this.runtimeByCampaign.set(campaignId, metrics);
     }
 }
 
