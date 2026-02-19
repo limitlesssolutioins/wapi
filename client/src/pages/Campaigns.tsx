@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef, useMemo, type FC } from 'react';
+import { useState, useEffect, useRef, useMemo, type FC, type Dispatch, type SetStateAction } from 'react';
 import { api } from '../services/api';
 import {
-    Send, Search, CheckCircle, Users, History, Loader2, Plus, X, Pencil, Zap, Server, Settings2
+    Send, Search, CheckCircle, Users, History, Loader2, Plus, X, Pencil, Zap, Server, Settings2,
+    AlertTriangle, Clock, ChevronLeft, ChevronRight, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
+
 // --- INTERFACES ---
 interface Contact { id: string; name: string; phone: string; }
 interface Group { id: string; name: string; contactCount: number; }
@@ -94,12 +96,12 @@ export default function Campaigns() {
         return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
     }, [activeCampaign]);
 
-    const fetchData = async <T extends object,>(endpoint: string, setter: (data: T) => void, errorMessage: string) => {
+    const fetchData = async <T,>(endpoint: string, setter: (data: T) => void, errorMessage: string) => {
         try {
             const { data } = await api.get<{ data: T } | T>(endpoint);
             // Handle paginated responses
-            if ('data' in data && 'meta' in data) {
-                setter(data.data as T);
+            if (data && typeof data === 'object' && 'data' in data && 'meta' in data) {
+                setter((data as any).data as T);
                 if(endpoint.includes('campaigns')) setHistoryMeta((data as any).meta);
             } else {
                 setter(data as T);
@@ -110,11 +112,11 @@ export default function Campaigns() {
         }
     };
     
-    const fetchContacts = () => fetchData('/api/contacts?limit=1000', setContacts, 'Error al cargar contactos');
-    const fetchGroups = () => fetchData('/api/groups', setGroups, 'Error al cargar grupos');
-    const fetchTemplates = () => fetchData('/api/templates', setTemplates, 'Error al cargar plantillas');
-    const fetchHistory = (page = historyPage) => fetchData(`/api/campaigns?page=${page}&limit=5`, setCampaignHistory, 'Error al cargar historial');
-    const fetchCampaignDetails = (id: string) => fetchData(`/api/campaigns/${id}`, setActiveCampaign, `Error al cargar detalles de campaña ${id}`);
+    const fetchContacts = () => fetchData<Contact[]>('/api/contacts?limit=1000', setContacts, 'Error al cargar contactos');
+    const fetchGroups = () => fetchData<Group[]>('/api/groups', setGroups, 'Error al cargar grupos');
+    const fetchTemplates = () => fetchData<MessageTemplate[]>('/api/templates', setTemplates, 'Error al cargar plantillas');
+    const fetchHistory = (page = historyPage) => fetchData<Campaign[]>(`/api/campaigns?page=${page}&limit=5`, setCampaignHistory, 'Error al cargar historial');
+    const fetchCampaignDetails = (id: string) => fetchData<Campaign>(`/api/campaigns/${id}`, (data) => setActiveCampaign(data), `Error al cargar detalles de campaña ${id}`);
     
     const fetchSessions = async () => {
         try {
@@ -266,12 +268,14 @@ export default function Campaigns() {
                             imageUrl={imageUrl}
                             setImageUrl={setImageUrl}
                             templates={templates}
-                            onLoadTemplate={(tpl) => {
+                            onLoadTemplate={(tpl: MessageTemplate) => {
                                 setMessage(tpl.content);
                                 setImageUrl(tpl.imageUrl || '');
                                 setSelectedTemplateId(tpl.id);
                             }}
                             fetchTemplates={fetchTemplates}
+                            contacts={contacts}
+                            selectedContactIds={selectedContactIds}
                         />
                     </Card>
                     
@@ -314,8 +318,8 @@ export default function Campaigns() {
                             <ActiveCampaignMonitor
                                 campaign={activeCampaign}
                                 onCancel={handleCancelCampaign}
-                                onPause={async (id) => { const { data } = await api.post(`/api/campaigns/${id}/pause`); setActiveCampaign(data); }}
-                                onResume={async (id) => { const { data } = await api.post(`/api/campaigns/${id}/resume`); setActiveCampaign(data); }}
+                                onPause={async (id: string) => { const { data } = await api.post(`/api/campaigns/${id}/pause`); setActiveCampaign(data); }}
+                                onResume={async (id: string) => { const { data } = await api.post(`/api/campaigns/${id}/resume`); setActiveCampaign(data); }}
                             />
                         </Card>
                     )}
@@ -327,7 +331,7 @@ export default function Campaigns() {
                             onSelectCampaign={fetchCampaignDetails}
                             onEditCampaign={handleEditCampaign}
                             onCancelCampaign={handleCancelCampaign}
-                            onPageChange={(page) => { setHistoryPage(page); fetchHistory(page); }}
+                            onPageChange={(page: number) => { setHistoryPage(page); fetchHistory(page); }}
                          />
                     </Card>
                 </div>
@@ -363,13 +367,9 @@ const Button: FC<{onClick: () => void, disabled?: boolean, children: React.React
     );
 };
 
-// ... (Other sub-components will go here)
 const isTerminalStatus = (status?: string) => ['COMPLETED', 'FAILED', 'CANCELLED'].includes(status || '');
 
-
-import { useState, useMemo, type FC } from 'react';
-import { Search, CheckCircle } from 'lucide-react'; // Moved here
-
+// --- PROPS INTERFACES ---
 interface CampaignRecipientsProps {
     contacts: Contact[];
     groups: Group[];
@@ -378,8 +378,49 @@ interface CampaignRecipientsProps {
     targetGroupId: string;
     setTargetGroupId: (id: string) => void;
     selectedContactIds: Set<string>;
-    setSelectedContactIds: (ids: Set<string>) => void;
+    setSelectedContactIds: React.Dispatch<React.SetStateAction<Set<string>>>; // Allow functional updates
 }
+
+interface CampaignMessageProps {
+    message: string;
+    setMessage: (message: string) => void;
+    imageUrl: string;
+    setImageUrl: (url: string) => void;
+    templates: MessageTemplate[];
+    onLoadTemplate: (template: MessageTemplate) => void;
+    fetchTemplates: () => void;
+    contacts: Contact[];
+    selectedContactIds: Set<string>;
+}
+
+interface CampaignOptionsProps {
+    availableSessions: string[];
+    selectedSessions: Set<string>;
+    setSelectedSessions: React.Dispatch<React.SetStateAction<Set<string>>>;
+    sessionProxies: Record<string, string>;
+    setSessionProxies: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+    blitzMode: boolean;
+    setBlitzMode: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+interface ActiveCampaignMonitorProps {
+    campaign: Campaign;
+    onCancel: (id: string) => void;
+    onPause: (id: string) => void;
+    onResume: (id: string) => void;
+}
+
+interface CampaignHistoryProps {
+    campaigns: Campaign[];
+    meta: { total: number; page: number; totalPages: number; };
+    onSelectCampaign: (id: string) => void;
+    onEditCampaign: (campaign: Campaign) => void;
+    onCancelCampaign: (id: string) => void;
+    onPageChange: (page: number) => void;
+}
+
+// --- SUB-COMPONENT IMPLEMENTATIONS ---
+
 const CampaignRecipients: FC<CampaignRecipientsProps> = ({ contacts, groups, selectionMode, setSelectionMode, targetGroupId, setTargetGroupId, selectedContactIds, setSelectedContactIds }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const filteredContacts = useMemo(() => contacts.filter((c: Contact) => 
@@ -435,21 +476,7 @@ const CampaignRecipients: FC<CampaignRecipientsProps> = ({ contacts, groups, sel
     );
 };
 
-import { useState, useRef, type FC } from 'react';
-import { Plus, Loader2, X, Trash2 } from 'lucide-react'; // Moved here
-import { api } from '../services/api';
-import { toast } from 'sonner';
-
-interface CampaignMessageProps {
-    message: string;
-    setMessage: (message: string) => void;
-    imageUrl: string;
-    setImageUrl: (url: string) => void;
-    templates: MessageTemplate[];
-    onLoadTemplate: (template: MessageTemplate) => void;
-    fetchTemplates: () => void;
-}
-const CampaignMessage: FC<CampaignMessageProps> = ({ message, setMessage, imageUrl, setImageUrl, templates, onLoadTemplate, fetchTemplates }) => {
+const CampaignMessage: FC<CampaignMessageProps> = ({ message, setMessage, imageUrl, setImageUrl, templates, onLoadTemplate, fetchTemplates, contacts, selectedContactIds }) => {
     const [templateName, setTemplateName] = useState('');
     const [uploading, setUploading] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -475,15 +502,38 @@ const CampaignMessage: FC<CampaignMessageProps> = ({ message, setMessage, imageU
             setImageUrl(data.url);
         } catch (err) { toast.error('Error al subir imagen'); } finally { setUploading(false); }
     };
+
+    // Live Preview Logic
+    const previewMessage = useMemo(() => {
+        if (!message) return '';
+        const firstContactId = Array.from(selectedContactIds)[0];
+        const contact = contacts.find(c => c.id === firstContactId) || { name: 'Ejemplo', phone: '1234567890' };
+        
+        let content = message;
+        // Spintax simplified preview (takes first option)
+        content = content.replace(/\{([^{}]+)\}/g, (_, choices) => choices.split('|')[0]);
+        // Variables
+        content = content.replace(/\{\{name\}\}/g, contact.name).replace(/\{\{phone\}\}/g, contact.phone);
+        return content;
+    }, [message, selectedContactIds, contacts]);
     
     return (
         <div className="space-y-4">
              <div className="flex gap-2 mb-2">
                 <span className="text-xs text-slate-500 leading-6">Insertar:</span>
-                <button onClick={() => {}} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono hover:bg-blue-100 transition-colors">{'{{name}}'}</button>
-                <button onClick={() => {}} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono hover:bg-blue-100 transition-colors">{'{{phone}}'}</button>
+                <button onClick={() => setMessage(prev => prev + '{{name}}')} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono hover:bg-blue-100 transition-colors">{'{{name}}'}</button>
+                <button onClick={() => setMessage(prev => prev + '{{phone}}')} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono hover:bg-blue-100 transition-colors">{'{{phone}}'}</button>
             </div>
-             <textarea ref={textareaRef} placeholder="Escribe tu mensaje..." value={message} onChange={(e) => setMessage(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-32 resize-none" />
+             <textarea ref={textareaRef} placeholder="Escribe tu mensaje... Usa {{name}} y {{phone}}" value={message} onChange={(e) => setMessage(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-32 resize-none" />
+             
+             {/* Live Preview Box */}
+             {message && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-xs font-medium text-green-700 mb-1 flex items-center gap-1"><Eye size={12} /> Vista Previa:</p>
+                    <p className="text-sm text-green-900 whitespace-pre-wrap">{previewMessage}</p>
+                </div>
+             )}
+
              {imageUrl ? (
                 <div className="relative inline-block group">
                     <img src={imageUrl} alt="Preview" className="h-32 w-48 object-cover rounded-lg border border-slate-200" />
@@ -516,18 +566,6 @@ const CampaignMessage: FC<CampaignMessageProps> = ({ message, setMessage, imageU
     );
 };
 
-import { useState, type FC } from 'react';
-import { Settings2, Zap } from 'lucide-react'; // Moved here
-
-interface CampaignOptionsProps {
-    availableSessions: string[];
-    selectedSessions: Set<string>;
-    setSelectedSessions: (sessions: Set<string>) => void;
-    sessionProxies: Record<string, string>;
-    setSessionProxies: (proxies: Record<string, string>) => void;
-    blitzMode: boolean;
-    setBlitzMode: (mode: boolean) => void;
-}
 const CampaignOptions: FC<CampaignOptionsProps> = ({ availableSessions, selectedSessions, setSelectedSessions, sessionProxies, setSessionProxies, blitzMode, setBlitzMode }) => {
     return (
         <div className="space-y-4">
@@ -543,7 +581,7 @@ const CampaignOptions: FC<CampaignOptionsProps> = ({ availableSessions, selected
                             {selectedSessions.has(s) && (
                                 <div className="relative mt-1 ml-8">
                                     <Settings2 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                    <input type="text" placeholder="URL del Proxy (opcional)" value={sessionProxies[s] || ''} onChange={(e) => setSessionProxies((p: any) => ({ ...p, [s]: e.target.value }))} className="w-full pl-8 pr-3 py-1 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-blue-500 outline-none" />
+                                    <input type="text" placeholder="URL del Proxy (opcional)" value={sessionProxies[s] || ''} onChange={(e) => setSessionProxies((p) => ({ ...p, [s]: e.target.value }))} className="w-full pl-8 pr-3 py-1 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-blue-500 outline-none" />
                                 </div>
                             )}
                         </div>
@@ -563,15 +601,6 @@ const CampaignOptions: FC<CampaignOptionsProps> = ({ availableSessions, selected
 };
 
 
-import { useMemo, type FC } from 'react';
-import { CheckCircle, Loader2, AlertTriangle, Clock } from 'lucide-react'; // Moved here
-
-interface ActiveCampaignMonitorProps {
-    campaign: Campaign;
-    onCancel: (id: string) => void;
-    onPause: (id: string) => void;
-    onResume: (id: string) => void;
-}
 const ActiveCampaignMonitor: FC<ActiveCampaignMonitorProps> = ({ campaign, onCancel, onPause, onResume }) => {
     const totals = useMemo(() => {
         if (!campaign) return { total: 0, sent: 0, failed: 0, pending: 0 };
@@ -615,17 +644,6 @@ const ActiveCampaignMonitor: FC<ActiveCampaignMonitorProps> = ({ campaign, onCan
     );
 };
 
-import { type FC } from 'react';
-import { Pencil, X, ChevronLeft, ChevronRight } from 'lucide-react'; // Moved here
-
-interface CampaignHistoryProps {
-    campaigns: Campaign[];
-    meta: { total: number; page: number; totalPages: number; };
-    onSelectCampaign: (id: string) => void;
-    onEditCampaign: (campaign: Campaign) => void;
-    onCancelCampaign: (id: string) => void;
-    onPageChange: (page: number) => void;
-}
 const CampaignHistory: FC<CampaignHistoryProps> = ({ campaigns, meta, onSelectCampaign, onEditCampaign, onCancelCampaign, onPageChange }) => (
     <div className="divide-y divide-slate-100">
         {campaigns.length === 0 ? <p className="p-4 text-center text-sm text-slate-400">No hay historial.</p> :
