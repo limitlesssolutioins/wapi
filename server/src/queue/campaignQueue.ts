@@ -1,5 +1,5 @@
 import { waService } from '../services/whatsappService.js';
-import { getCampaignById, updateCampaignStatus, updateRecipientStatus } from '../utils/campaigns.js';
+import { getCampaignById, updateCampaignStatus, updateRecipientStatus, CampaignSessionData } from '../utils/campaigns.js';
 import { getTemplateById } from '../utils/templates.js';
 
 type SessionMetrics = {
@@ -15,8 +15,8 @@ type CampaignRuntimeMetrics = {
     errorCounts: Record<string, number>;
 };
 
-// Rotate session every N messages to give each number a natural rest
-const ROTATION_LIMIT = 15;
+// Randomize rotation every N messages to give each number a natural rest
+const getNewRotationLimit = () => Math.floor(Math.random() * (20 - 10 + 1)) + 10;
 
 class CampaignQueue {
     private queue: string[] = [];
@@ -36,7 +36,7 @@ class CampaignQueue {
     }
 
     /** No-op in sequential mode — sessions are picked up from DB on next rotation. */
-    addSessionToCampaign(_campaignId: string, _sessionId: string): boolean {
+    addSessionToCampaign(_campaignId: string, _sessionData: CampaignSessionData): boolean {
         return true;
     }
 
@@ -90,8 +90,8 @@ class CampaignQueue {
         }
 
         // Initialize metrics
-        const sessionIds = (campaign.sessionIds || []).filter((s) => waService.isValidSessionId(s));
-        if (sessionIds.length === 0) {
+        const activeSessionsData = (campaign.sessions || []).filter((s) => waService.isValidSessionId(s.id));
+        if (activeSessionsData.length === 0) {
             console.error(`[Campaign ${campaignId}] No valid sessions assigned.`);
             updateCampaignStatus(campaignId, 'FAILED');
             return;
@@ -99,12 +99,13 @@ class CampaignQueue {
 
         this.runtimeByCampaign.set(campaignId, {
             startedAt: new Date().toISOString(),
-            bySession: Object.fromEntries(sessionIds.map((s) => [s, { sent: 0, failed: 0 }])),
+            bySession: Object.fromEntries(activeSessionsData.map((s) => [s.id, { sent: 0, failed: 0 }])),
             errorCounts: {},
         });
 
+        let currentRotationLimit = getNewRotationLimit();
         console.log(
-            `[Campaign ${campaignId}] ${pendingRecipients.length} recipients, sessions: [${sessionIds.join(', ')}], rotating every ${ROTATION_LIMIT} messages.`
+            `[Campaign ${campaignId}] ${pendingRecipients.length} recipients, sessions: [${activeSessionsData.map(s => s.id).join(', ')}], initial rotation limit: ${currentRotationLimit}.`
         );
 
         let currentSessionIndex = 0;
@@ -123,52 +124,60 @@ class CampaignQueue {
             }
 
             // Re-read session list from DB (supports adding/removing sessions mid-campaign)
-            const activeSessions = (getCampaignById(campaignId)?.sessionIds || []).filter((s) =>
-                waService.isValidSessionId(s)
+            const updatedCampaign = getCampaignById(campaignId);
+            if (!updatedCampaign) { // Campaign might have been deleted
+                console.error(`[Campaign ${campaignId}] Campaign not found during processing. Stopping.`);
+                return;
+            }
+            const currentActiveSessionsData = (updatedCampaign.sessions || []).filter((s) =>
+                waService.isValidSessionId(s.id)
             );
-            if (activeSessions.length === 0) {
+            if (currentActiveSessionsData.length === 0) {
                 console.error(`[Campaign ${campaignId}] No sessions remaining. Failing.`);
                 updateCampaignStatus(campaignId, 'FAILED');
                 return;
             }
 
             // Rotate session after ROTATION_LIMIT messages
-            if (messagesSentOnCurrentSession >= ROTATION_LIMIT && activeSessions.length > 1) {
+            if (messagesSentOnCurrentSession >= currentRotationLimit && currentActiveSessionsData.length > 1) {
                 messagesSentOnCurrentSession = 0;
-                currentSessionIndex = (currentSessionIndex + 1) % activeSessions.length;
-                console.log(`[Campaign ${campaignId}] Rotated to session: ${activeSessions[currentSessionIndex]}`);
+                currentRotationLimit = getNewRotationLimit();
+                currentSessionIndex = (currentSessionIndex + 1) % currentActiveSessionsData.length;
+                console.log(`[Campaign ${campaignId}] Rotated to session: ${currentActiveSessionsData[currentSessionIndex].id} (Next limit: ${currentRotationLimit})`);
             }
 
-            const currentSessionId = activeSessions[currentSessionIndex % activeSessions.length];
+            const currentSession = currentActiveSessionsData[currentSessionIndex % currentActiveSessionsData.length];
 
             // Delay between messages (skip before the very first)
             if (i > 0) {
-                const canContinue = await this.sleepWithStatusCheck(campaignId, 10000, 20000);
+                const canContinue = await this.sleepWithStatusCheck(campaignId, 15000, 35000);
                 if (!canContinue) return;
             }
 
             try {
                 const resolvedMessage = this.resolveVariables(template.content, recipient);
-                await waService.sendMessage(currentSessionId, recipient.phone, resolvedMessage, campaign.imageUrl);
+                // Pass proxyUrl to sendMessage
+                await waService.sendMessage(currentSession.id, recipient.phone, resolvedMessage, campaign.imageUrl, false, currentSession.proxyUrl || undefined);
                 updateRecipientStatus(campaignId, recipient.contactId, 'SENT');
                 messagesSentOnCurrentSession++;
-                this.bumpMetric(campaignId, currentSessionId, 'sent');
+                this.bumpMetric(campaignId, currentSession.id, 'sent');
                 console.log(
-                    `[Campaign ${campaignId}] [${i + 1}/${pendingRecipients.length}] [${currentSessionId}] Sent to ${recipient.phone}`
+                    `[Campaign ${campaignId}] [${i + 1}/${pendingRecipients.length}] [${currentSession.id}] Sent to ${recipient.phone}`
                 );
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 updateRecipientStatus(campaignId, recipient.contactId, 'FAILED', errorMsg);
-                this.bumpMetric(campaignId, currentSessionId, 'failed', errorMsg);
+                this.bumpMetric(campaignId, currentSession.id, 'failed', errorMsg);
                 console.error(
                     `[Campaign ${campaignId}] [${i + 1}/${pendingRecipients.length}] Failed for ${recipient.phone}: ${errorMsg}`
                 );
 
                 // Rotate immediately if the session disconnected and there are alternatives
-                if (errorMsg.includes('disconnected') && activeSessions.length > 1) {
-                    currentSessionIndex = (currentSessionIndex + 1) % activeSessions.length;
+                if (errorMsg.toLowerCase().includes('disconnected') && currentActiveSessionsData.length > 1) {
+                    currentSessionIndex = (currentSessionIndex + 1) % currentActiveSessionsData.length;
                     messagesSentOnCurrentSession = 0;
-                    console.log(`[Campaign ${campaignId}] Session error — rotated to: ${activeSessions[currentSessionIndex]}`);
+                    currentRotationLimit = getNewRotationLimit();
+                    console.log(`[Campaign ${campaignId}] Session error — rotated to: ${currentActiveSessionsData[currentSessionIndex].id}`);
                 }
             }
         }
@@ -178,7 +187,14 @@ class CampaignQueue {
     }
 
     private resolveVariables(templateContent: string, recipient: { name: string; phone: string }): string {
-        return templateContent
+        // First resolve Spintax: {Hola|Qué tal|Buen día}
+        let content = templateContent.replace(/\{([^{}]+)\}/g, (match, choices) => {
+            const parts = choices.split('|');
+            return parts[Math.floor(Math.random() * parts.length)];
+        });
+
+        // Then resolve variables
+        return content
             .replace(/\{\{name\}\}/g, recipient.name)
             .replace(/\{\{phone\}\}/g, recipient.phone);
     }

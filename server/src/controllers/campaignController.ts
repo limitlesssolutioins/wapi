@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import { addSessionToCampaign, cancelCampaign, createCampaign, getCampaignProgress as getCampaignDetails, listCampaigns, pauseCampaign, removeSessionFromCampaign, resumeCampaign, updateCampaign } from '../services/campaignService.js';
+import { CampaignSessionData } from '../utils/campaigns.js'; // Import CampaignSessionData
+import { waService } from '../services/whatsappService.js'; // Import waService
 
 export const create = (req: Request, res: Response) => {
-    const { name, templateId, imageUrl, blitzMode, contactIds, groupId, sessionId, sessionIds, scheduleTime } = req.body;
+    const { name, templateId, imageUrl, blitzMode, contactIds, groupId, sessionId, sessionIds, scheduleTime, proxyUrl } = req.body;
     
     // Normalize sessionIds from either sessionId (old) or sessionIds (new)
     const finalSessionIds = sessionIds && Array.isArray(sessionIds) && sessionIds.length > 0
@@ -25,6 +27,7 @@ export const create = (req: Request, res: Response) => {
             groupId: groupId || null,
             sessionIds: finalSessionIds,
             scheduleTime: scheduleTime || null,
+            proxyUrl: proxyUrl || null, // Pass proxyUrl
         });
         res.status(201).json(campaign);
     } catch (error) {
@@ -36,10 +39,18 @@ export const create = (req: Request, res: Response) => {
 
 export const update = (req: Request, res: Response) => {
     const { id } = req.params;
-    const { name, templateId, imageUrl, sessionIds, scheduleTime } = req.body;
+    const { name, templateId, imageUrl, sessionIds, sessions, scheduleTime, proxyUrl } = req.body; // Add sessions and proxyUrl
+
+    let updatedSessionsData: CampaignSessionData[] | undefined;
+    if (sessions) {
+        updatedSessionsData = (sessions as CampaignSessionData[]).filter(s => waService.isValidSessionId(s.id));
+    } else if (sessionIds) {
+        // Fallback for old sessionIds, apply single proxyUrl if available
+        updatedSessionsData = (sessionIds as string[]).map(id => ({ id: id, proxyUrl: proxyUrl || null }));
+    }
 
     try {
-        updateCampaign(id as string, { name, templateId, imageUrl, sessionIds, scheduleTime });
+        updateCampaign(id as string, { name, templateId, imageUrl, sessions: updatedSessionsData, scheduleTime }); // Pass sessions
         res.json({ success: true });
     } catch (error) {
         console.error('Campaign update failed:', error);
@@ -111,14 +122,14 @@ export const resume = (req: Request, res: Response) => {
 
 export const addSession = (req: Request, res: Response) => {
     const { id } = req.params;
-    const { sessionId } = req.body;
+    const { sessionId, proxyUrl } = req.body; // Add proxyUrl
 
     if (!sessionId) {
         return res.status(400).json({ error: 'sessionId is required' });
     }
 
     try {
-        addSessionToCampaign(id as string, sessionId);
+        addSessionToCampaign(id as string, sessionId, proxyUrl); // Pass proxyUrl
         res.json({ success: true });
     } catch (error) {
         console.error('Add session failed:', error);

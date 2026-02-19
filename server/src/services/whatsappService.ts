@@ -10,6 +10,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { logMessage } from '../utils/logger.js';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -18,6 +19,7 @@ interface SessionData {
     socket: WASocket | null;
     qrCode: string | null;
     status: 'DISCONNECTED' | 'CONNECTING' | 'QR_READY' | 'CONNECTED';
+    proxy: string | null; // Added proxy field
 }
 
 export class WhatsAppService {
@@ -35,7 +37,8 @@ export class WhatsAppService {
             this.sessions.set(sessionId, {
                 socket: null,
                 qrCode: null,
-                status: 'DISCONNECTED'
+                status: 'DISCONNECTED',
+                proxy: null // Initialize proxy to null
             });
         }
         return this.sessions.get(sessionId)!;
@@ -69,8 +72,10 @@ export class WhatsAppService {
                     if (!this.isValidSessionId(sessionId)) {
                         continue;
                     }
+                    // TODO: Retrieve proxy information from persistent storage for this sessionId
+                    // For now, assume no proxy for existing sessions on init
                     await new Promise(resolve => setTimeout(resolve, 1000));
-                    await this.connect(sessionId);
+                    await this.connect(sessionId); 
                 }
             }
         } catch (error) {
@@ -78,7 +83,7 @@ export class WhatsAppService {
         }
     }
 
-    async connect(sessionId: string): Promise<void> {
+    async connect(sessionId: string, proxyUrl?: string): Promise<void> {
         if (!this.isValidSessionId(sessionId)) {
             throw new Error(`Invalid session ID: ${sessionId}`);
         }
@@ -97,6 +102,7 @@ export class WhatsAppService {
         }
 
         session.status = 'CONNECTING';
+        session.proxy = proxyUrl || null; // Store the proxy URL
         
         const connectionTimeout = setTimeout(() => {
             if (session.status === 'CONNECTING') {
@@ -116,7 +122,7 @@ export class WhatsAppService {
             const socket = makeWASocket({
                 auth: state,
                 printQRInTerminal: false,
-                browser: ['Ubuntu', 'Chrome', '110.0.5481.177'],
+                browser: ['Ubuntu', 'Chrome', '122.0.6261.94'],
                 markOnlineOnConnect: false,
                 connectTimeoutMs: 120000,
                 defaultQueryTimeoutMs: 120000,
@@ -124,6 +130,7 @@ export class WhatsAppService {
                 syncFullHistory: false,
                 generateHighQualityLinkPreview: false,
                 retryRequestDelayMs: 5000,
+                ...(proxyUrl ? { agent: new HttpsProxyAgent(proxyUrl) } : {}), // Add proxy agent if proxyUrl is provided
             });
 
             session.socket = socket;
@@ -167,7 +174,7 @@ export class WhatsAppService {
                     
                     if (shouldReconnect && !isIntentionalStop) {
                         session.status = 'CONNECTING';
-                        setTimeout(() => this.connect(sessionId), 5000);
+                        setTimeout(() => this.connect(sessionId, session.proxy || undefined), 5000); // Pass proxy on reconnect
                     } else {
                         session.status = 'DISCONNECTED';
                         session.qrCode = null;
@@ -228,6 +235,7 @@ export class WhatsAppService {
             console.error(`[${sessionId}] Failed to connect:`, error);
             session.status = 'DISCONNECTED';
             session.socket = null;
+            session.proxy = null; // Clear proxy on connection failure
         }
     }
 
@@ -260,7 +268,16 @@ export class WhatsAppService {
         }
     }
 
-    async sendMessage(sessionId: string, phone: string, text: string, imageUrl?: string, skipVerification = false) {
+    async sendTyping(sessionId: string, jid: string, duration: number) {
+        const session = this.getSession(sessionId);
+        if (session.socket) {
+            await session.socket.sendPresenceUpdate('composing', jid);
+            await new Promise(resolve => setTimeout(resolve, duration));
+            await session.socket.sendPresenceUpdate('paused', jid);
+        }
+    }
+
+    async sendMessage(sessionId: string, phone: string, text: string, imageUrl?: string, skipVerification = false, proxyUrl?: string) {
         if (!this.isValidSessionId(sessionId)) {
             throw new Error(`Invalid session ID: ${sessionId}`);
         }
@@ -282,6 +299,11 @@ export class WhatsAppService {
                 if (!result || !result.exists) throw new Error(`Number ${cleanedPhone} is not registered.`);
                 jid = result.jid;
             }
+
+            // Simulate typing based on message length (approx 50ms per character, min 1s, max 5s)
+            const typingDuration = Math.min(Math.max(text.length * 50, 1000), 5000);
+            await this.sendTyping(sessionId, jid, typingDuration);
+
             let msgResult;
             if (imageUrl) {
                 msgResult = await session.socket.sendMessage(jid, { image: { url: imageUrl }, caption: text });
@@ -327,17 +349,21 @@ export class WhatsAppService {
             session.socket = null;
         }
         session.status = 'DISCONNECTED';
+        session.qrCode = null; // Also clear QR code on disconnect
+        session.proxy = null; // Clear proxy on disconnect
     }
 
     async logout(sessionId: string): Promise<void> {
         if (!this.isValidSessionId(sessionId)) return;
         this.stopReconnectFor.add(sessionId);
-        try { await this.disconnect(sessionId); } catch (e) {}
+        try { await this.disconnect(sessionId); } catch (e) { /* ignore errors during forced disconnect */ }
         const authFolder = this.getAuthFolder(sessionId);
         try {
             if (fs.existsSync(authFolder)) fs.rmSync(authFolder, { recursive: true, force: true });
             this.sessions.delete(sessionId);
-        } catch (error) {}
+        } catch (error) {
+            console.error(`[${sessionId}] Error during logout cleanup:`, error);
+        }
     }
 
     async resetSession(sessionId: string): Promise<void> {

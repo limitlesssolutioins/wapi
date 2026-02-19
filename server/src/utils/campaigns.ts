@@ -9,9 +9,14 @@ export interface CampaignRecipient {
     sentAt?: string;
 }
 
+export interface CampaignSessionData {
+    id: string; // The sessionId
+    proxyUrl?: string | null; // Optional proxy URL for this session
+}
+
 export interface Campaign {
     id: string;
-    sessionIds: string[]; // Stored as JSON in DB
+    sessions: CampaignSessionData[]; // Stored as JSON in DB
     name: string; // The campaign name
     templateId: string;
     imageUrl?: string;
@@ -63,7 +68,7 @@ export const getCampaigns = (page: number = 1, limit: number = 10): { data: Camp
         name: c.name,
         templateId: c.templateId,
         imageUrl: c.imageUrl,
-        sessionIds: JSON.parse(c.sessionIds || '[]'), // Ensure sessionIds is parsed here
+        sessions: JSON.parse(c.sessionIds || '[]'), // Parse the new sessions structure
         status: c.status,
         scheduleTime: c.scheduleTime,
         createdAt: c.createdAt,
@@ -97,7 +102,7 @@ export const getCampaignById = (id: string): Campaign | undefined => {
         templateId: campaignRow.templateId,
         imageUrl: campaignRow.imageUrl,
         blitzMode: campaignRow.blitzMode === 1,
-        sessionIds: JSON.parse(campaignRow.sessionIds || '[]'),
+        sessions: JSON.parse(campaignRow.sessionIds || '[]'), // Parse the new sessions structure
         status: campaignRow.status,
         scheduleTime: campaignRow.scheduleTime,
         createdAt: campaignRow.createdAt,
@@ -107,7 +112,7 @@ export const getCampaignById = (id: string): Campaign | undefined => {
     };
 };
 
-export const saveCampaign = (campaign: Omit<Campaign, 'id' | 'createdAt' | 'stats'>, recipients: Omit<CampaignRecipient, 'status'>[]): Campaign => {
+export const saveCampaign = (campaign: Omit<Campaign, 'id' | 'createdAt' | 'stats' | 'sessions'> & { sessions: CampaignSessionData[] }, recipients: Omit<CampaignRecipient, 'status'>[]): Campaign => {
     const id = `camp_${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
 
@@ -127,7 +132,7 @@ export const saveCampaign = (campaign: Omit<Campaign, 'id' | 'createdAt' | 'stat
             campaign.name,
             campaign.templateId,
             campaign.imageUrl || null,
-            JSON.stringify(campaign.sessionIds),
+            JSON.stringify(campaign.sessions), // Stringify the new sessions array
             campaign.status,
             campaign.scheduleTime,
             now,
@@ -146,14 +151,14 @@ export const updateCampaignStatus = (id: string, status: Campaign['status']): vo
     db.prepare('UPDATE campaigns SET status = ?, completedAt = ? WHERE id = ?').run(status, completedAt, id);
 };
 
-export const updateCampaignDetails = (id: string, updates: Partial<Pick<Campaign, 'name' | 'templateId' | 'imageUrl' | 'sessionIds' | 'scheduleTime'>>): void => {
+export const updateCampaignDetails = (id: string, updates: Partial<Pick<Campaign, 'name' | 'templateId' | 'imageUrl' | 'scheduleTime'>> & { sessions?: CampaignSessionData[] }): void => {
     const sets: string[] = [];
     const params: any[] = [];
 
     if (updates.name !== undefined) { sets.push('name = ?'); params.push(updates.name); }
     if (updates.templateId !== undefined) { sets.push('templateId = ?'); params.push(updates.templateId); }
     if (updates.imageUrl !== undefined) { sets.push('imageUrl = ?'); params.push(updates.imageUrl); }
-    if (updates.sessionIds !== undefined) { sets.push('sessionIds = ?'); params.push(JSON.stringify(updates.sessionIds)); }
+    if (updates.sessions !== undefined) { sets.push('sessionIds = ?'); params.push(JSON.stringify(updates.sessions)); } // Handle sessions array
     if (updates.scheduleTime !== undefined) { sets.push('scheduleTime = ?'); params.push(updates.scheduleTime); }
 
     if (sets.length === 0) return;
