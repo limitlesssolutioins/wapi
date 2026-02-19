@@ -96,7 +96,7 @@ export default function Campaigns() {
         return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
     }, [activeCampaign]);
 
-    const fetchData = async <T>(endpoint: string, setter: (data: T) => void, errorMessage: string) => {
+    const fetchData = async <T,>(endpoint: string, setter: (data: T) => void, errorMessage: string) => {
         try {
             const { data } = await api.get<{ data: T } | T>(endpoint);
             // Handle paginated responses
