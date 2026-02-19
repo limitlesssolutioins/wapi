@@ -964,30 +964,36 @@ export default function Campaigns() {
                                 <span className="flex items-center gap-1 text-green-600">
                                     <CheckCircle size={14} /> {totals.sent} enviados
                                 </span>
-                                <span className="flex items-center gap-1 text-red-500">
-                                    <AlertTriangle size={14} /> {totals.failed} fallidos
-                                </span>
-                                <span className="flex items-center gap-1 text-slate-500">
-                                    <Clock size={14} /> {totals.pending} pendientes
-                                </span>
+                                {activeCampaign.status !== 'COMPLETED' && (
+                                    <>
+                                        <span className="flex items-center gap-1 text-red-500">
+                                            <AlertTriangle size={14} /> {totals.failed} fallidos
+                                        </span>
+                                        <span className="flex items-center gap-1 text-slate-500">
+                                            <Clock size={14} /> {totals.pending} pendientes
+                                        </span>
+                                    </>
+                                )}
                             </div>
 
-                            <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                                <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
-                                    <p className="text-slate-400 uppercase tracking-wide">Velocidad</p>
-                                    <p className="font-semibold text-slate-700">{globalRatePerMin.toFixed(2)} msg/min</p>
+                            {activeCampaign.status !== 'COMPLETED' && (
+                                <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                                    <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                                        <p className="text-slate-400 uppercase tracking-wide">Velocidad</p>
+                                        <p className="font-semibold text-slate-700">{globalRatePerMin.toFixed(2)} msg/min</p>
+                                    </div>
+                                    <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                                        <p className="text-slate-400 uppercase tracking-wide">ETA</p>
+                                        <p className="font-semibold text-slate-700">
+                                            {etaMinutes !== null ? `${Math.ceil(etaMinutes)} min` : 'Calculando...'}
+                                        </p>
+                                    </div>
+                                    <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                                        <p className="text-slate-400 uppercase tracking-wide">Procesados</p>
+                                        <p className="font-semibold text-slate-700">{processedCount} / {totals.total}</p>
+                                    </div>
                                 </div>
-                                <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
-                                    <p className="text-slate-400 uppercase tracking-wide">ETA</p>
-                                    <p className="font-semibold text-slate-700">
-                                        {etaMinutes !== null ? `${Math.ceil(etaMinutes)} min` : 'Calculando...'}
-                                    </p>
-                                </div>
-                                <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
-                                    <p className="text-slate-400 uppercase tracking-wide">Procesados</p>
-                                    <p className="font-semibold text-slate-700">{processedCount} / {totals.total}</p>
-                                </div>
-                            </div>
+                            )}
 
                             {/* Session management — shown for all non-terminal campaigns */}
                             {!isTerminalStatus(activeCampaign.status) && (activeCampaign.sessionIds?.length ?? 0) > 0 && (
@@ -1053,7 +1059,7 @@ export default function Campaigns() {
                                 </div>
                             )}
 
-                            {topErrors.length > 0 && (
+                            {topErrors.length > 0 && activeCampaign.status !== 'COMPLETED' && (
                                 <div className="mb-4 border border-amber-200 rounded-lg overflow-hidden">
                                     <div className="px-3 py-2 bg-amber-50 text-xs font-bold text-amber-700 uppercase tracking-wide">
                                         Top errores
@@ -1071,7 +1077,7 @@ export default function Campaigns() {
 
                             {/* Recipients list */}
                             <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
-                                {activeCampaign.recipients.map(r => (
+                                {activeCampaign.recipients.filter(r => activeCampaign.status === 'COMPLETED' ? r.status === 'SENT' : true).map(r => (
                                     <div key={r.contactId} className="flex items-center justify-between px-3 py-2 text-sm">
                                         <div className="flex items-center gap-2 min-w-0">
                                             <div className="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center text-xs font-bold text-slate-500 flex-shrink-0">
@@ -1102,7 +1108,7 @@ export default function Campaigns() {
                             </div>
 
                             {/* Numbers without WhatsApp */}
-                            {(() => {
+                            {activeCampaign.status !== 'COMPLETED' && (() => {
                                 const noWhatsApp = activeCampaign.recipients.filter(
                                     r => r.status === 'FAILED' && r.error?.includes('is not registered')
                                 );

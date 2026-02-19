@@ -1,0 +1,34 @@
+=========================================
+  FIX CAMPAÑA - EJECUTAR EN VPS VIA SSH
+=========================================
+
+PASO 1: Entrar a la carpeta del servidor
+-----------------------------------------
+cd ~/wapi/server
+
+
+PASO 2: Ver la última campaña (solo para confirmar)
+-----------------------------------------
+node -e "const db = require('better-sqlite3')('./database.sqlite'); const c = db.prepare('SELECT id, name, status, createdAt FROM campaigns ORDER BY createdAt DESC LIMIT 1').get(); console.log(JSON.stringify(c, null, 2)); db.close();"
+
+
+PASO 3: Aplicar el fix (marcar como COMPLETADA)
+-----------------------------------------
+node -e "
+const db = require('better-sqlite3')('./database.sqlite');
+const camp = db.prepare('SELECT id FROM campaigns ORDER BY createdAt DESC LIMIT 1').get();
+db.prepare('UPDATE campaigns SET status = ?, completedAt = ? WHERE id = ?').run('COMPLETED', new Date().toISOString(), camp.id);
+console.log('Listo! Campaña ' + camp.id + ' marcada como COMPLETED');
+db.close();
+"
+
+
+=========================================
+  NOTAS
+=========================================
+- Los datos NO se borran, solo cambia el estado a COMPLETED
+- La lista de destinatarios en el dashboard ya no mostrará
+  los rojos (eso se cambia en el código del frontend)
+- Ejecuta los pasos en orden: 1, luego 2 para confirmar,
+  luego 3 para aplicar el fix
+=========================================
