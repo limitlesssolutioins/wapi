@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, type FC, type Dispatch, type SetS
 import { api } from '../services/api';
 import {
     Send, Search, CheckCircle, Users, History, Loader2, Plus, X, Pencil, Zap, Server, Settings2,
-    ChevronLeft, ChevronRight, Trash2, Eye
+    AlertTriangle, Clock, ChevronLeft, ChevronRight, Trash2, Eye, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -63,6 +63,7 @@ export default function Campaigns() {
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
     const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
     const [sessionProxies, setSessionProxies] = useState<Record<string, string>>({});
+    const [proxyEnabledSessions, setProxyEnabledSessions] = useState<Set<string>>(new Set());
     const [blitzMode, setBlitzMode] = useState(false);
     
     const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
@@ -139,7 +140,7 @@ export default function Campaigns() {
         setEditingCampaignId(null);
         setBlitzMode(false);
         setSessionProxies({});
-        // No reseteamos las sesiones seleccionadas, el usuario suele querer usar las mismas
+        setProxyEnabledSessions(new Set());
     };
 
     const handleLaunch = async () => {
@@ -162,7 +163,7 @@ export default function Campaigns() {
 
             const sessionsPayload: CampaignSessionData[] = Array.from(selectedSessions).map(id => ({
                 id,
-                proxyUrl: sessionProxies[id] || null
+                proxyUrl: proxyEnabledSessions.has(id) ? (sessionProxies[id] || null) : null
             }));
 
             const campaignData = {
@@ -211,11 +212,16 @@ export default function Campaigns() {
         const validSessionIds = campaign.sessions.map(s => s.id).filter(id => availableSessions.includes(id));
         setSelectedSessions(new Set(validSessionIds));
         
-        const proxies = campaign.sessions.reduce((acc, s) => {
-            if (s.proxyUrl) acc[s.id] = s.proxyUrl;
-            return acc;
-        }, {} as Record<string, string>);
+        const proxies: Record<string, string> = {};
+        const enabledProxies = new Set<string>();
+        campaign.sessions.forEach(s => {
+            if (s.proxyUrl) {
+                proxies[s.id] = s.proxyUrl;
+                enabledProxies.add(s.id);
+            }
+        });
         setSessionProxies(proxies);
+        setProxyEnabledSessions(enabledProxies);
 
         setSelectionMode('manual');
         setTargetGroupId('');
@@ -287,6 +293,8 @@ export default function Campaigns() {
                             setSelectedSessions={setSelectedSessions}
                             sessionProxies={sessionProxies}
                             setSessionProxies={setSessionProxies}
+                            proxyEnabledSessions={proxyEnabledSessions}
+                            setProxyEnabledSessions={setProxyEnabledSessions}
                             blitzMode={blitzMode}
                             setBlitzMode={setBlitzMode}
                         />
@@ -399,6 +407,8 @@ interface CampaignOptionsProps {
     setSelectedSessions: Dispatch<SetStateAction<Set<string>>>;
     sessionProxies: Record<string, string>;
     setSessionProxies: Dispatch<SetStateAction<Record<string, string>>>;
+    proxyEnabledSessions: Set<string>;
+    setProxyEnabledSessions: Dispatch<SetStateAction<Set<string>>>;
     blitzMode: boolean;
     setBlitzMode: Dispatch<SetStateAction<boolean>>;
 }
@@ -523,6 +533,7 @@ const CampaignMessage: FC<CampaignMessageProps> = ({ message, setMessage, imageU
                 <span className="text-xs text-slate-500 leading-6">Insertar:</span>
                 <button onClick={() => setMessage(prev => prev + '{{name}}')} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono hover:bg-blue-100 transition-colors">{'{{name}}'}</button>
                 <button onClick={() => setMessage(prev => prev + '{{phone}}')} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono hover:bg-blue-100 transition-colors">{'{{phone}}'}</button>
+                <button onClick={() => setMessage(prev => prev + '{Hola|Buen día}')} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono hover:bg-blue-100 transition-colors" title="Ejemplo de Spintax">{'{Spintax}'}</button>
             </div>
              <textarea ref={textareaRef} placeholder="Escribe tu mensaje... Usa {{name}} y {{phone}}" value={message} onChange={(e) => setMessage(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-32 resize-none" />
              
@@ -566,22 +577,51 @@ const CampaignMessage: FC<CampaignMessageProps> = ({ message, setMessage, imageU
     );
 };
 
-const CampaignOptions: FC<CampaignOptionsProps> = ({ availableSessions, selectedSessions, setSelectedSessions, sessionProxies, setSessionProxies, blitzMode, setBlitzMode }) => {
+const CampaignOptions: FC<CampaignOptionsProps> = ({ availableSessions, selectedSessions, setSelectedSessions, sessionProxies, setSessionProxies, proxyEnabledSessions, setProxyEnabledSessions, blitzMode, setBlitzMode }) => {
+    
+    const toggleProxyForSession = (sessionId: string) => {
+        setProxyEnabledSessions(prev => {
+            const next = new Set(prev);
+            if (next.has(sessionId)) next.delete(sessionId);
+            else next.add(sessionId);
+            return next;
+        });
+    };
+
     return (
         <div className="space-y-4">
             <div>
                 <h4 className="text-sm font-semibold text-slate-600 mb-2">Líneas de Envío ({selectedSessions.size}/{availableSessions.length})</h4>
-                 <div className="space-y-2 max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-2">
+                 <div className="space-y-3 max-h-64 overflow-y-auto border border-slate-200 rounded-lg p-3">
                     {availableSessions.map((s: string) => (
-                        <div key={s}>
-                            <label className="flex items-center gap-3 px-2 py-1.5 hover:bg-slate-50 rounded-lg">
-                                <input type="checkbox" checked={selectedSessions.has(s)} onChange={() => setSelectedSessions((prev) => { const next = new Set(prev); if (next.has(s)) { if (next.size > 1) next.delete(s); } else next.add(s); return next; })} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                                <span className="text-sm text-slate-700 font-medium">{s}</span>
-                            </label>
-                            {selectedSessions.has(s) && (
-                                <div className="relative mt-1 ml-8">
+                        <div key={s} className="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
+                            <div className="flex items-center justify-between">
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" checked={selectedSessions.has(s)} onChange={() => setSelectedSessions((prev) => { const next = new Set(prev); if (next.has(s)) { if (next.size > 1) next.delete(s); } else next.add(s); return next; })} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                    <span className="text-sm text-slate-700 font-bold">{s}</span>
+                                </label>
+                                
+                                {selectedSessions.has(s) && (
+                                    <button 
+                                        onClick={() => toggleProxyForSession(s)}
+                                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${proxyEnabledSessions.has(s) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}
+                                    >
+                                        {proxyEnabledSessions.has(s) ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                                        PROXY {proxyEnabledSessions.has(s) ? 'ON' : 'OFF'}
+                                    </button>
+                                )}
+                            </div>
+
+                            {selectedSessions.has(s) && proxyEnabledSessions.has(s) && (
+                                <div className="relative mt-2 ml-7 animate-in slide-in-from-top-1 duration-200">
                                     <Settings2 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                    <input type="text" placeholder="URL del Proxy (opcional)" value={sessionProxies[s] || ''} onChange={(e) => setSessionProxies((p) => ({ ...p, [s]: e.target.value }))} className="w-full pl-8 pr-3 py-1 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-blue-500 outline-none" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="http://user:pass@ip:port" 
+                                        value={sessionProxies[s] || ''} 
+                                        onChange={(e) => setSessionProxies((p) => ({ ...p, [s]: e.target.value }))} 
+                                        className="w-full pl-8 pr-3 py-1.5 border border-blue-200 bg-blue-50/30 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none placeholder:text-slate-300" 
+                                    />
                                 </div>
                             )}
                         </div>
