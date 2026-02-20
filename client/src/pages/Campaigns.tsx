@@ -533,7 +533,7 @@ const CampaignMessage: FC<CampaignMessageProps> = ({ message, setMessage, imageU
                 <span className="text-xs text-slate-500 leading-6">Insertar:</span>
                 <button onClick={() => setMessage(prev => prev + '{{name}}')} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono hover:bg-blue-100 transition-colors">{'{{name}}'}</button>
                 <button onClick={() => setMessage(prev => prev + '{{phone}}')} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono hover:bg-blue-100 transition-colors">{'{{phone}}'}</button>
-                <button onClick={() => setMessage(prev => prev + '{Hola|Buen día}')} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono hover:bg-blue-100 transition-colors" title="Ejemplo de Spintax">{'{Spintax}'}</button>
+                <button onClick={() => setMessage(prev => prev + '{opcion1|opcion2|opcion3}')} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs font-mono hover:bg-blue-100 transition-colors" title="Ejemplo de Spintax">{'{Spintax}'}</button>
             </div>
              <textarea ref={textareaRef} placeholder="Escribe tu mensaje... Usa {{name}} y {{phone}}" value={message} onChange={(e) => setMessage(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-32 resize-none" />
              
