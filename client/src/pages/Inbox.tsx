@@ -194,7 +194,7 @@ export default function Inbox() {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex justify-between items-baseline mb-1">
-                                        <span className="font-semibold text-slate-800 truncate text-sm">+57 {chat.phone}</span>
+                                        <span className="font-semibold text-slate-800 truncate text-sm">+{chat.phone}</span>
                                         <span className="text-[10px] text-slate-400 flex-shrink-0">
                                             {new Date(chat.timestamp).toLocaleDateString()}
                                         </span>
@@ -230,7 +230,7 @@ export default function Inbox() {
                                     <User size={16} />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-slate-800">+57 {activeChat}</h3>
+                                    <h3 className="font-bold text-slate-800">+{activeChat}</h3>
                                     <div className="text-xs text-green-600 flex items-center gap-1">
                                         <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                                         En línea

@@ -3,6 +3,27 @@ import { api } from '../services/api';
 import { UserPlus, Trash2, Search, ChevronLeft, ChevronRight, Loader2, Pencil, Users, Plus, FolderOpen, CheckSquare, Square } from 'lucide-react';
 import { toast } from 'sonner';
 
+const COUNTRY_CODES = [
+    { code: '1',  label: '+1  US/CA' },
+    { code: '57', label: '+57 CO' },
+    { code: '52', label: '+52 MX' },
+    { code: '55', label: '+55 BR' },
+    { code: '54', label: '+54 AR' },
+    { code: '51', label: '+51 PE' },
+    { code: '56', label: '+56 CL' },
+    { code: '34', label: '+34 ES' },
+];
+
+const detectCountryCode = (fullPhone: string): { code: string; local: string } => {
+    const sorted = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
+    for (const cc of sorted) {
+        if (fullPhone.startsWith(cc.code)) {
+            return { code: cc.code, local: fullPhone.slice(cc.code.length) };
+        }
+    }
+    return { code: '57', local: fullPhone };
+};
+
 interface Contact {
     id: string;
     name: string;
@@ -34,6 +55,7 @@ export default function Contacts() {
 
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
+    const [countryCode, setCountryCode] = useState('57');
     const [searchTerm, setSearchTerm] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
     
@@ -218,11 +240,12 @@ export default function Contacts() {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            const fullPhone = countryCode + phone;
             if (editingId) {
-                await api.put(`/api/contacts/${editingId}`, { name, phone });
+                await api.put(`/api/contacts/${editingId}`, { name, phone: fullPhone });
                 toast.success('Contacto actualizado');
             } else {
-                await api.post('/api/contacts', { name, phone });
+                await api.post('/api/contacts', { name, phone: fullPhone });
                 toast.success('Contacto guardado');
             }
             resetForm();
@@ -236,13 +259,16 @@ export default function Contacts() {
     const handleEdit = (contact: Contact) => {
         setEditingId(contact.id);
         setName(contact.name);
-        setPhone(contact.phone);
+        const { code, local } = detectCountryCode(contact.phone);
+        setCountryCode(code);
+        setPhone(local);
     };
 
     const resetForm = () => {
         setEditingId(null);
         setName('');
         setPhone('');
+        setCountryCode('57');
     };
 
     const handleDelete = async (id: string) => {
@@ -363,10 +389,18 @@ export default function Contacts() {
                                 required
                             />
                             <div className="flex">
-                                <span className="inline-flex items-center px-2 rounded-l-lg border border-r-0 border-slate-300 bg-slate-50 text-slate-500 text-xs">+57</span>
+                                <select
+                                    value={countryCode}
+                                    onChange={(e) => setCountryCode(e.target.value)}
+                                    className="px-2 py-1.5 border border-r-0 border-slate-300 rounded-l-lg text-xs bg-slate-50 text-slate-500 outline-none focus:ring-1 focus:ring-blue-500"
+                                >
+                                    {COUNTRY_CODES.map(cc => (
+                                        <option key={cc.code} value={cc.code}>{cc.label}</option>
+                                    ))}
+                                </select>
                                 <input
                                     type="text"
-                                    placeholder="300..."
+                                    placeholder="3001234567"
                                     value={phone}
                                     onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                                     className="w-full px-3 py-1.5 border border-slate-300 rounded-r-lg text-sm outline-none focus:ring-1 focus:ring-blue-500"
@@ -475,7 +509,7 @@ export default function Contacts() {
                                                                 <span className="font-medium text-slate-800">{contact.name}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-3 text-sm text-slate-600">+57 {contact.phone}</td>
+                                                        <td className="px-4 py-3 text-sm text-slate-600">+{contact.phone}</td>
                                                         <td className="px-4 py-3 text-right">
                                                             <div className="flex justify-end gap-1">
                                                                 <button onClick={() => handleEdit(contact)} className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-white"><Pencil size={16} /></button>

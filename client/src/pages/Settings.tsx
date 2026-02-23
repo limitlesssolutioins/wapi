@@ -13,7 +13,27 @@ interface ParsedContact {
 
 type Tab = 'csv' | 'paste';
 
-function parseLines(raw: string): ParsedContact[] {
+const COUNTRY_CODES = [
+    { code: '1',  label: '+1  US/CA' },
+    { code: '57', label: '+57 CO' },
+    { code: '52', label: '+52 MX' },
+    { code: '55', label: '+55 BR' },
+    { code: '54', label: '+54 AR' },
+    { code: '51', label: '+51 PE' },
+    { code: '56', label: '+56 CL' },
+    { code: '34', label: '+34 ES' },
+];
+
+function normalizePhone(raw: string, defaultCode: string): string {
+    // Strip everything except digits and leading +
+    const digits = raw.replace(/[\s\-\(\)\+]/g, '');
+    // If already has country code (11+ digits), use as-is
+    if (digits.length >= 11) return digits;
+    // Otherwise prepend default country code
+    return defaultCode + digits;
+}
+
+function parseLines(raw: string, defaultCode: string): ParsedContact[] {
     const lines = raw.split(/\r?\n/).filter(l => l.trim() !== '');
     if (lines.length === 0) return [];
 
@@ -26,7 +46,8 @@ function parseLines(raw: string): ParsedContact[] {
         // Split by tab or comma
         const parts = line.includes('\t') ? line.split('\t') : line.split(',');
         const name = (parts[0] || '').trim();
-        const phone = (parts[1] || '').trim().replace(/[\s\-\(\)]/g, '');
+        const rawPhone = (parts[1] || '').trim();
+        const phone = normalizePhone(rawPhone, defaultCode);
         const valid = name.length > 0 && phone.length >= 7;
         return { name, phone, valid };
     });
@@ -38,6 +59,7 @@ export default function Settings() {
     const [pasteText, setPasteText] = useState('');
     const [importing, setImporting] = useState(false);
     const [result, setResult] = useState<{ imported: number; duplicates: number } | null>(null);
+    const [defaultCode, setDefaultCode] = useState('57');
     const fileRef = useRef<HTMLInputElement>(null);
 
     const validCount = parsed.filter(c => c.valid).length;
@@ -50,14 +72,14 @@ export default function Settings() {
         const reader = new FileReader();
         reader.onload = (ev) => {
             const text = ev.target?.result as string;
-            setParsed(parseLines(text));
+            setParsed(parseLines(text, defaultCode));
         };
         reader.readAsText(file);
     };
 
     const handlePaste = () => {
         setResult(null);
-        setParsed(parseLines(pasteText));
+        setParsed(parseLines(pasteText, defaultCode));
     };
 
     const handleImport = async () => {
@@ -93,6 +115,25 @@ export default function Settings() {
                     Importar Contactos
                 </h3>
 
+                {/* Default country code */}
+                <div className="flex items-center gap-3 mb-5">
+                    <label className="text-sm font-medium text-slate-700 whitespace-nowrap">
+                        Indicativo por defecto
+                    </label>
+                    <select
+                        value={defaultCode}
+                        onChange={(e) => { setDefaultCode(e.target.value); reset(); }}
+                        className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        {COUNTRY_CODES.map(cc => (
+                            <option key={cc.code} value={cc.code}>{cc.label}</option>
+                        ))}
+                    </select>
+                    <span className="text-xs text-slate-400">
+                        Se agrega a números con menos de 11 dígitos. Si ya tienen indicativo, se ignora.
+                    </span>
+                </div>
+
                 {/* Tabs */}
                 <div className="flex gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
                     <button
@@ -114,7 +155,7 @@ export default function Settings() {
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">
-                                Selecciona un archivo CSV (columnas: nombre, telefono)
+                                Selecciona un archivo CSV (columnas: nombre, telefono con código de país)
                             </label>
                             <input
                                 ref={fileRef}
@@ -125,7 +166,8 @@ export default function Settings() {
                             />
                         </div>
                         <p className="text-xs text-slate-400">
-                            La fila de encabezado con "nombre" y "telefono" se detectará y omitirá automáticamente. Soporta delimitadores de coma o tabulación.
+                            Encabezado detectado automáticamente. Soporta coma o tabulación.
+                            Números sin indicativo recibirán el indicativo por defecto seleccionado arriba.
                         </p>
                     </div>
                 )}
@@ -135,13 +177,13 @@ export default function Settings() {
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">
-                                Pega los contactos (uno por línea: nombre, telefono)
+                                Pega los contactos (uno por línea: nombre, telefono con código de país)
                             </label>
                             <textarea
                                 value={pasteText}
                                 onChange={(e) => setPasteText(e.target.value)}
                                 rows={8}
-                                placeholder={"Juan Perez,3001234567\nMaria Lopez,3109876543"}
+                                placeholder={"Juan Perez,3001234567\nJohn Smith,13055551234\nMaria Lopez,573109876543"}
                                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
                             />
                         </div>
@@ -152,7 +194,8 @@ export default function Settings() {
                             Analizar Contactos
                         </button>
                         <p className="text-xs text-slate-400">
-                            Soporta separadores de coma o tabulación (copiar y pegar desde Excel funciona). Encabezado detectado automáticamente.
+                            Soporta coma o tabulación (pegar desde Excel funciona). Encabezado detectado automáticamente.
+                            Números sin indicativo recibirán el indicativo por defecto seleccionado arriba.
                         </p>
                     </div>
                 )}

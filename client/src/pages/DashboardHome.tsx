@@ -5,6 +5,17 @@ import {
     CheckCircle, BarChart3, RefreshCw, Clock, Activity, Loader2
 } from 'lucide-react';
 
+const COUNTRY_CODES = [
+    { code: '1',  label: '+1  US/CA' },
+    { code: '57', label: '+57 CO' },
+    { code: '52', label: '+52 MX' },
+    { code: '55', label: '+55 BR' },
+    { code: '54', label: '+54 AR' },
+    { code: '51', label: '+51 PE' },
+    { code: '56', label: '+56 CL' },
+    { code: '34', label: '+34 ES' },
+];
+
 interface Stats {
     sentCount: number;
     failedCount: number;
@@ -33,6 +44,7 @@ export default function DashboardHome() {
 
     // Quick send state
     const [phone, setPhone] = useState('');
+    const [countryCode, setCountryCode] = useState('57');
     const [message, setMessage] = useState('');
     const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
 
@@ -72,7 +84,7 @@ export default function DashboardHome() {
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
         setSendStatus('sending');
-        const fullPhone = phone.startsWith('57') ? phone : `57${phone}`;
+        const fullPhone = `${countryCode}${phone}`;
         try {
             await api.post('/api/whatsapp/send', { 
                 phone: fullPhone, 
@@ -223,9 +235,15 @@ export default function DashboardHome() {
                             <div>
                                 <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Número de Teléfono</label>
                                 <div className="flex">
-                                    <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-slate-200 bg-slate-50 text-slate-400 text-sm font-mono">
-                                        +57
-                                    </span>
+                                    <select
+                                        value={countryCode}
+                                        onChange={(e) => setCountryCode(e.target.value)}
+                                        className="px-2 py-2 border border-r-0 border-slate-200 rounded-l-lg bg-slate-50 text-slate-500 text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        {COUNTRY_CODES.map(cc => (
+                                            <option key={cc.code} value={cc.code}>{cc.label}</option>
+                                        ))}
+                                    </select>
                                     <input
                                         type="text"
                                         placeholder="3001234567"
