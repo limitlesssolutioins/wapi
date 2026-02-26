@@ -20,6 +20,7 @@ interface SessionData {
     qrCode: string | null;
     status: 'DISCONNECTED' | 'CONNECTING' | 'QR_READY' | 'CONNECTED';
     proxy: string | null; // Added proxy field
+    reconnectAttempts: number;
 }
 
 export class WhatsAppService {
@@ -38,7 +39,8 @@ export class WhatsAppService {
                 socket: null,
                 qrCode: null,
                 status: 'DISCONNECTED',
-                proxy: null // Initialize proxy to null
+                proxy: null,
+                reconnectAttempts: 0
             });
         }
         return this.sessions.get(sessionId)!;
@@ -89,7 +91,7 @@ export class WhatsAppService {
         }
         this.stopReconnectFor.delete(sessionId);
         const session = this.getSession(sessionId);
-        
+
         if (session.socket) {
             console.log(`[${sessionId}] Cleaning up existing socket before new connection attempt.`);
             try { session.socket.end(undefined); } catch (e) {}
@@ -102,7 +104,7 @@ export class WhatsAppService {
         }
 
         session.status = 'CONNECTING';
-        session.proxy = proxyUrl || null; // Store the proxy URL
+        session.proxy = proxyUrl || null;
         
         const connectionTimeout = setTimeout(() => {
             if (session.status === 'CONNECTING') {
@@ -171,20 +173,26 @@ export class WhatsAppService {
                     const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
                     const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
                     const isIntentionalStop = this.stopReconnectFor.has(sessionId);
-                    
+
                     if (shouldReconnect && !isIntentionalStop) {
+                        session.reconnectAttempts += 1;
+                        // Exponential backoff: 5s, 10s, 20s, 40s, ... max 5min
+                        const delay = Math.min(5000 * Math.pow(2, session.reconnectAttempts - 1), 300000);
+                        console.log(`[${sessionId}] Reconnecting in ${Math.round(delay / 1000)}s (attempt ${session.reconnectAttempts})`);
                         session.status = 'CONNECTING';
-                        setTimeout(() => this.connect(sessionId, session.proxy || undefined), 5000); // Pass proxy on reconnect
+                        setTimeout(() => this.connect(sessionId, session.proxy || undefined), delay);
                     } else {
                         session.status = 'DISCONNECTED';
                         session.qrCode = null;
                         session.socket = null;
+                        session.reconnectAttempts = 0;
                     }
                 } else if (connection === 'open') {
                     clearTimeout(connectionTimeout);
                     console.log(`[${sessionId}] Connection opened`);
                     session.status = 'CONNECTED';
                     session.qrCode = null;
+                    session.reconnectAttempts = 0;
                 }
             });
 
