@@ -19,8 +19,9 @@ interface SessionData {
     socket: WASocket | null;
     qrCode: string | null;
     status: 'DISCONNECTED' | 'CONNECTING' | 'QR_READY' | 'CONNECTED';
-    proxy: string | null; // Added proxy field
+    proxy: string | null;
     reconnectAttempts: number;
+    activeSocketId: number; // to ignore events from stale/replaced sockets
 }
 
 export class WhatsAppService {
@@ -40,7 +41,8 @@ export class WhatsAppService {
                 qrCode: null,
                 status: 'DISCONNECTED',
                 proxy: null,
-                reconnectAttempts: 0
+                reconnectAttempts: 0,
+                activeSocketId: 0
             });
         }
         return this.sessions.get(sessionId)!;
@@ -105,7 +107,8 @@ export class WhatsAppService {
 
         session.status = 'CONNECTING';
         session.proxy = proxyUrl || null;
-        
+        const mySocketId = ++session.activeSocketId; // invalidates all previous sockets
+
         const connectionTimeout = setTimeout(() => {
             if (session.status === 'CONNECTING') {
                 console.warn(`[${sessionId}] Connection timed out. Resetting status.`);
@@ -159,6 +162,9 @@ export class WhatsAppService {
             });
 
             socket.ev.on('connection.update', (update: Partial<ConnectionState>) => {
+                // Ignore events from stale sockets that were replaced by a newer connect() call
+                if (session.activeSocketId !== mySocketId) return;
+
                 const { connection, lastDisconnect, qr } = update;
 
                 if (qr) {
