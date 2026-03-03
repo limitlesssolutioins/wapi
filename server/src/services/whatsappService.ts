@@ -127,7 +127,8 @@ export class WhatsAppService {
             const socket = makeWASocket({
                 auth: state,
                 printQRInTerminal: false,
-                browser: ['Ubuntu', 'Chrome', '122.0.6261.94'],
+                version: [2, 3000, 1033893291],
+                browser: ['Chrome', 'Chrome', '145.0.0'],
                 markOnlineOnConnect: false,
                 connectTimeoutMs: 120000,
                 defaultQueryTimeoutMs: 120000,
