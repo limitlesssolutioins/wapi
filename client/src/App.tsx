@@ -7,6 +7,7 @@ import SmsCampaigns from './pages/SmsCampaigns';
 import Contacts from './pages/Contacts';
 import Settings from './pages/Settings';
 import Inbox from './pages/Inbox';
+import CheckNumber from './pages/CheckNumber';
 import Login from './pages/Login';
 import { AuthProvider, useAuth } from './services/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -33,6 +34,7 @@ const AppWrapper = () => {
         <Route path="sms" element={<SmsCampaigns />} />
         <Route path="contacts" element={<Contacts />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="check" element={<CheckNumber />} />
       </Route>
     </Routes>
   );

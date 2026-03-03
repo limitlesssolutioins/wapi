@@ -1,5 +1,5 @@
 ﻿import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Smartphone, Send, Settings, Menu, Users, Zap, MessageSquare, LogOut } from 'lucide-react';
+import { LayoutDashboard, Smartphone, Send, Settings, Menu, Users, Zap, MessageSquare, LogOut, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
 import { Toaster } from 'sonner';
@@ -17,6 +17,7 @@ export default function Layout() {
         { icon: Send, label: 'Campanas', path: '/campaigns' },
         { icon: Send, label: 'SMS', path: '/sms' },
         { icon: Users, label: 'Contactos', path: '/contacts' },
+        { icon: ShieldCheck, label: 'Verificar WA', path: '/check' },
         { icon: Settings, label: 'Configuración', path: '/settings' },
     ];
 
