@@ -100,6 +100,28 @@
     .gap { display: flex; gap: 6px; align-items: center; }
     .icon-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 0.78rem; }
     .icon-btn:hover { background: var(--border); color: var(--text); }
+
+    /* Status action buttons (per row) */
+    .sbtn { padding: 4px 9px; border-radius: 5px; font-size: 0.72rem; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all 0.12s; white-space: nowrap; }
+    .sbtn-p { background: rgba(245,158,11,0.12); color: var(--yellow); border-color: rgba(245,158,11,0.3); }
+    .sbtn-p:hover { background: rgba(245,158,11,0.28); }
+    .sbtn-s { background: rgba(34,197,94,0.12); color: var(--green); border-color: rgba(34,197,94,0.3); }
+    .sbtn-s:hover { background: rgba(34,197,94,0.28); }
+    .sbtn-f { background: rgba(239,68,68,0.12); color: var(--red); border-color: rgba(239,68,68,0.3); }
+    .sbtn-f:hover { background: rgba(239,68,68,0.28); }
+
+    /* Bulk action bar */
+    .bulk-bar { background: #1d4ed8; padding: 10px 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid #1e40af; }
+    .bulk-bar > span { font-size: 0.82rem; font-weight: 600; color: #fff; }
+    .bbtn { padding: 5px 13px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.12); color: #fff; transition: background 0.12s; white-space: nowrap; }
+    .bbtn:hover { background: rgba(255,255,255,0.22); }
+    .bbtn-p { background: rgba(245,158,11,0.35); border-color: rgba(245,158,11,0.6); }
+    .bbtn-s { background: rgba(34,197,94,0.35); border-color: rgba(34,197,94,0.6); }
+    .bbtn-f { background: rgba(239,68,68,0.35); border-color: rgba(239,68,68,0.6); }
+
+    /* Checkbox */
+    input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+    tr.row-sel { background: rgba(59,130,246,0.06) !important; }
   </style>
 </head>
 <body>
@@ -164,6 +186,7 @@
   let activeCampId = null;
   let activeFilter = '';
   let toastTimer;
+  let selectedIds = new Set();
 
   // ─── Auth ───────────────────────────────────────────────────────────────────
   async function doLogin() {
@@ -283,6 +306,7 @@
   // ─── Recipients ──────────────────────────────────────────────────────────────
   function setFilter(btn, status) {
     activeFilter = status;
+    selectedIds.clear();
     document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     loadRecipients(activeCampId, status);
@@ -300,6 +324,7 @@
   }
 
   function renderRecipients(list) {
+    selectedIds.clear();
     if (!list.length) {
       document.getElementById('rec-body').innerHTML = '<div class="empty">Sin registros con este filtro.</div>';
       return;
@@ -307,8 +332,10 @@
     const rows = list.map(r => {
       const sc = {SENT:'sent',FAILED:'failed',PENDING:'pending'}[r.status]||'pending';
       const errHtml = r.error ? `<span class="err-cell" title="${esc(r.error)}">${esc(r.error)}</span>` : '<span class="muted">—</span>';
-      const opts = ['PENDING','SENT','FAILED'].map(s => `<option value="${s}"${r.status===s?' selected':''}>${s}</option>`).join('');
-      return `<tr>
+      return `<tr id="row-${r.id}">
+        <td style="width:36px;text-align:center;padding:11px 8px">
+          <input type="checkbox" class="row-cb" data-id="${r.id}" onchange="toggleRow(${r.id},this)">
+        </td>
         <td style="font-family:monospace;font-size:0.82rem">${esc(r.phone)}</td>
         <td>${esc(r.name||'—')}</td>
         <td><span class="badge b-${sc}">${r.status}</span></td>
@@ -316,25 +343,88 @@
         <td class="muted">${r.sentAt ? fmtDate(r.sentAt) : '—'}</td>
         <td>
           <div class="gap">
-            <select class="ssel" id="s${r.id}">${opts}</select>
-            <button class="btn btn-neutral btn-sm" onclick="saveRec(${r.id})">Guardar</button>
+            <button class="sbtn sbtn-p" onclick="saveRec(${r.id},'PENDING')">◷ Pend.</button>
+            <button class="sbtn sbtn-s" onclick="saveRec(${r.id},'SENT')">✓ Env.</button>
+            <button class="sbtn sbtn-f" onclick="saveRec(${r.id},'FAILED')">✗ Fall.</button>
           </div>
         </td>
       </tr>`;
     }).join('');
+
     document.getElementById('rec-body').innerHTML = `
+      <div id="bulk-bar" class="bulk-bar" style="display:none">
+        <span id="bulk-count"></span>
+        <span style="opacity:0.7;font-weight:400">→ Marcar como:</span>
+        <button class="bbtn bbtn-p" onclick="bulkApply('PENDING')">◷ Pendiente</button>
+        <button class="bbtn bbtn-s" onclick="bulkApply('SENT')">✓ Enviado</button>
+        <button class="bbtn bbtn-f" onclick="bulkApply('FAILED')">✗ Fallido</button>
+        <button class="bbtn" onclick="clearSel()" style="margin-left:auto">✕ Deseleccionar</button>
+      </div>
       <table>
-        <thead><tr><th>Teléfono</th><th>Nombre</th><th>Estado</th><th>Error</th><th>Enviado</th><th>Editar</th></tr></thead>
+        <thead><tr>
+          <th style="width:36px;padding:11px 8px"><input type="checkbox" id="cb-all" onchange="toggleAll(this)" title="Seleccionar todos"></th>
+          <th>Teléfono</th><th>Nombre</th><th>Estado</th><th>Error</th><th>Enviado</th><th>Cambiar a</th>
+        </tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
   }
 
-  async function saveRec(id) {
-    const sel = document.getElementById('s'+id);
-    if (!sel) return;
-    const r = await api(`/x-admin/recipients/${id}`, { method:'PUT', body: JSON.stringify({status:sel.value}) }).catch(()=>null);
-    if (r && r.ok) { toast('Destinatario actualizado'); loadRecipients(activeCampId, activeFilter); }
+  // ─── Selección ───────────────────────────────────────────────────────────────
+  function toggleRow(id, cb) {
+    if (cb.checked) { selectedIds.add(id); cb.closest('tr').classList.add('row-sel'); }
+    else { selectedIds.delete(id); cb.closest('tr').classList.remove('row-sel'); }
+    updateBulkBar();
+  }
+
+  function toggleAll(cb) {
+    document.querySelectorAll('.row-cb').forEach(c => {
+      c.checked = cb.checked;
+      const id = parseInt(c.dataset.id);
+      if (cb.checked) { selectedIds.add(id); c.closest('tr').classList.add('row-sel'); }
+      else { selectedIds.delete(id); c.closest('tr').classList.remove('row-sel'); }
+    });
+    updateBulkBar();
+  }
+
+  function updateBulkBar() {
+    const bar = document.getElementById('bulk-bar');
+    if (!bar) return;
+    const n = selectedIds.size;
+    bar.style.display = n > 0 ? 'flex' : 'none';
+    if (n > 0) document.getElementById('bulk-count').textContent = `${n} seleccionado${n > 1 ? 's' : ''}`;
+  }
+
+  function clearSel() {
+    selectedIds.clear();
+    document.querySelectorAll('.row-cb').forEach(c => { c.checked = false; c.closest('tr').classList.remove('row-sel'); });
+    const all = document.getElementById('cb-all');
+    if (all) all.checked = false;
+    updateBulkBar();
+  }
+
+  // ─── Guardar individual ──────────────────────────────────────────────────────
+  async function saveRec(id, status) {
+    const r = await api(`/x-admin/recipients/${id}`, { method:'PUT', body: JSON.stringify({status}) }).catch(()=>null);
+    if (r && r.ok) { toast('Actualizado'); loadRecipients(activeCampId, activeFilter); }
     else toast('Error al guardar','err');
+  }
+
+  // ─── Bulk apply ──────────────────────────────────────────────────────────────
+  async function bulkApply(status) {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const label = {PENDING:'Pendiente', SENT:'Enviado', FAILED:'Fallido'}[status];
+    toast(`Aplicando ${label} a ${ids.length} registros…`);
+    let ok = 0, fail = 0;
+    for (const id of ids) {
+      const r = await api(`/x-admin/recipients/${id}`, { method:'PUT', body: JSON.stringify({status}) }).catch(()=>null);
+      if (r && r.ok) ok++; else fail++;
+    }
+    selectedIds.clear();
+    if (fail === 0) toast(`${ok} registro(s) marcados como ${label}`);
+    else toast(`${ok} OK, ${fail} con error`, 'err');
+    loadRecipients(activeCampId, activeFilter);
+    loadCampaigns();
   }
 
   async function doResetFailed() {
