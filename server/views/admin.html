@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Admin</title>
+  <style>
+    :root {
+      --bg: #0f172a; --card: #1e293b; --border: #334155;
+      --text: #e2e8f0; --muted: #94a3b8; --accent: #3b82f6;
+      --green: #22c55e; --red: #ef4444; --yellow: #f59e0b; --orange: #f97316;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+    /* Auth */
+    .auth-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .auth-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 40px; width: 380px; }
+    .auth-card h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+    .auth-card p { color: var(--muted); font-size: 0.85rem; margin-bottom: 28px; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+    input[type="password"] { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 0.875rem; }
+    input:focus { outline: none; border-color: var(--accent); }
+    .err { color: var(--red); font-size: 0.8rem; margin-top: 10px; display: none; }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 16px; border-radius: 8px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: none; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-full { width: 100%; padding: 11px; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-neutral { background: var(--border); color: var(--text); }
+    .btn-warning { background: var(--yellow); color: #111; }
+    .btn-danger { background: var(--red); color: #fff; }
+    .btn-sm { padding: 5px 10px; font-size: 0.75rem; }
+
+    /* Layout */
+    .app { max-width: 1440px; margin: 0 auto; padding: 24px; }
+    .topbar { display: flex; align-items: center; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+    .topbar h1 { font-size: 1.1rem; font-weight: 700; flex: 1; }
+    .topbar span { color: var(--muted); font-size: 0.8rem; }
+
+    /* Card */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+    .card-hdr { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .card-hdr h2 { font-size: 0.95rem; font-weight: 600; flex: 1; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; }
+    th { padding: 11px 16px; text-align: left; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    td { padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover { background: rgba(255,255,255,0.03); }
+    tr.selected { background: rgba(59,130,246,0.07) !important; }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+    .b-sent     { background: rgba(34,197,94,0.15); color: var(--green); }
+    .b-failed   { background: rgba(239,68,68,0.15); color: var(--red); }
+    .b-pending  { background: rgba(245,158,11,0.15); color: var(--yellow); }
+    .b-processing { background: rgba(59,130,246,0.15); color: var(--accent); }
+    .b-completed  { background: rgba(34,197,94,0.1); color: var(--green); }
+    .b-queued     { background: rgba(148,163,184,0.15); color: var(--muted); }
+    .b-paused     { background: rgba(249,115,22,0.15); color: var(--orange); }
+    .b-cancelled, .b-failed-c { background: rgba(239,68,68,0.1); color: var(--red); }
+
+    /* Stats inline */
+    .stats { display: flex; gap: 10px; font-size: 0.8rem; }
+    .s-sent { color: var(--green); } .s-fail { color: var(--red); } .s-pend { color: var(--yellow); } .s-tot { color: var(--muted); }
+
+    /* Filters */
+    .filters { display: flex; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--border); align-items: center; flex-wrap: wrap; }
+    .filters span { color: var(--muted); font-size: 0.8rem; }
+    .fbtn { padding: 5px 12px; border-radius: 6px; font-size: 0.78rem; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--muted); transition: all 0.15s; }
+    .fbtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .fbtn:hover:not(.active) { background: var(--border); color: var(--text); }
+
+    /* Select in table */
+    select.ssel { padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: 0.78rem; }
+    select.ssel:focus { outline: none; border-color: var(--accent); }
+
+    /* Status select for campaign row */
+    select.cssel { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: 0.75rem; }
+
+    /* Error cell */
+    .err-cell { color: var(--red); font-size: 0.75rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Empty / loading */
+    .empty { text-align: center; padding: 48px; color: var(--muted); }
+    .loading { text-align: center; padding: 48px; color: var(--muted); }
+
+    /* Toast */
+    #toast { position: fixed; bottom: 24px; right: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px; font-size: 0.85rem; transform: translateY(100px); opacity: 0; transition: all 0.3s; z-index: 9999; pointer-events: none; }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.ok { border-color: var(--green); color: var(--green); }
+    #toast.err { border-color: var(--red); color: var(--red); }
+
+    .muted { color: var(--muted); font-size: 0.78rem; }
+    .gap { display: flex; gap: 6px; align-items: center; }
+    .icon-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 0.78rem; }
+    .icon-btn:hover { background: var(--border); color: var(--text); }
+  </style>
+</head>
+<body>
+
+<!-- Auth -->
+<div id="auth" class="auth-wrap">
+  <div class="auth-card">
+    <h2>Panel de Administración</h2>
+    <p>Acceso restringido. Ingresa la clave secreta.</p>
+    <div class="field">
+      <label>Clave de acceso</label>
+      <input type="password" id="key-inp" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-primary btn-full" onclick="doLogin()">Ingresar</button>
+    <p class="err" id="auth-err">Clave incorrecta o error de conexión.</p>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" style="display:none">
+  <div class="app">
+    <div class="topbar">
+      <h1>Admin · Campañas</h1>
+      <span id="last-refresh"></span>
+      <button class="icon-btn" onclick="loadCampaigns()">↻ Actualizar</button>
+      <button class="btn btn-neutral btn-sm" onclick="doLogout()">Salir</button>
+    </div>
+
+    <!-- Campaigns -->
+    <div class="card">
+      <div class="card-hdr">
+        <h2>Campañas</h2>
+        <span class="muted" id="camp-count"></span>
+      </div>
+      <div id="camp-body"><div class="loading">Cargando…</div></div>
+    </div>
+
+    <!-- Recipients -->
+    <div class="card" id="rec-panel" style="display:none">
+      <div class="card-hdr">
+        <h2 id="rec-title">Destinatarios</h2>
+        <span class="muted" id="rec-count"></span>
+        <button class="btn btn-warning btn-sm" onclick="doResetFailed()">↺ Reset Fallidos → Pendiente</button>
+        <button class="icon-btn" onclick="loadRecipients(activeCampId, activeFilter)">↻</button>
+      </div>
+      <div class="filters">
+        <span>Filtrar:</span>
+        <button class="fbtn active" onclick="setFilter(this,'')">Todos</button>
+        <button class="fbtn" onclick="setFilter(this,'PENDING')">Pendientes</button>
+        <button class="fbtn" onclick="setFilter(this,'SENT')">Enviados</button>
+        <button class="fbtn" onclick="setFilter(this,'FAILED')">Fallidos</button>
+      </div>
+      <div id="rec-body"><div class="empty">Selecciona una campaña para ver destinatarios.</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  let adminKey = localStorage.getItem('_ak') || '';
+  let activeCampId = null;
+  let activeFilter = '';
+  let toastTimer;
+
+  // ─── Auth ───────────────────────────────────────────────────────────────────
+  async function doLogin() {
+    const k = document.getElementById('key-inp').value.trim();
+    if (!k) return;
+    adminKey = k;
+    const r = await api('/x-admin/campaigns').catch(() => null);
+    if (r && r.ok) {
+      localStorage.setItem('_ak', k);
+      showApp();
+      loadCampaigns();
+    } else {
+      document.getElementById('auth-err').style.display = 'block';
+    }
+  }
+
+  function doLogout() {
+    localStorage.removeItem('_ak');
+    adminKey = '';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('auth').style.display = 'flex';
+    document.getElementById('key-inp').value = '';
+  }
+
+  function showApp() {
+    document.getElementById('auth').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+  }
+
+  // ─── API ─────────────────────────────────────────────────────────────────────
+  function api(path, opts = {}) {
+    return fetch(location.origin + path, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey, ...(opts.headers || {}) }
+    });
+  }
+
+  // ─── Toast ───────────────────────────────────────────────────────────────────
+  function toast(msg, type = 'ok') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'show ' + type;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className = ''; }, 3000);
+  }
+
+  // ─── Campaigns ───────────────────────────────────────────────────────────────
+  async function loadCampaigns() {
+    document.getElementById('camp-body').innerHTML = '<div class="loading">Cargando…</div>';
+    const r = await api('/x-admin/campaigns').catch(() => null);
+    if (!r || !r.ok) { doLogout(); return; }
+    const data = await r.json();
+    document.getElementById('last-refresh').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es');
+    renderCampaigns(data);
+  }
+
+  function renderCampaigns(list) {
+    document.getElementById('camp-count').textContent = list.length + ' campañas';
+    if (!list.length) {
+      document.getElementById('camp-body').innerHTML = '<div class="empty">No hay campañas.</div>';
+      return;
+    }
+    const statusClass = { COMPLETED:'completed', PROCESSING:'processing', QUEUED:'queued', FAILED:'failed-c', PAUSED:'paused', CANCELLED:'cancelled' };
+    const rows = list.map(c => {
+      const sc = statusClass[c.status] || 'queued';
+      const sel = ['QUEUED','PROCESSING','COMPLETED','PAUSED','FAILED','CANCELLED']
+        .map(s => `<option value="${s}"${c.status===s?' selected':''}>${s}</option>`).join('');
+      return `<tr class="clickable${activeCampId===c.id?' selected':''}" onclick="selectCamp('${c.id}',${JSON.stringify(c.name)},this)">
+        <td>
+          <div style="font-weight:500">${esc(c.name)}</div>
+          <div class="muted">${c.id}</div>
+        </td>
+        <td><span class="badge b-${sc}">${c.status}</span></td>
+        <td>
+          <div class="stats">
+            <span class="s-sent">✓ ${c.sent||0}</span>
+            <span class="s-fail">✗ ${c.failed||0}</span>
+            <span class="s-pend">◷ ${c.pending||0}</span>
+            <span class="s-tot">/ ${c.total||0}</span>
+          </div>
+        </td>
+        <td class="muted">${fmtDate(c.createdAt)}</td>
+        <td onclick="event.stopPropagation()">
+          <select class="cssel" onchange="setCampStatus('${c.id}',this.value)">${sel}</select>
+        </td>
+      </tr>`;
+    }).join('');
+    document.getElementById('camp-body').innerHTML = `
+      <table>
+        <thead><tr><th>Campaña</th><th>Estado</th><th>Estadísticas</th><th>Creada</th><th>Cambiar estado</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  async function setCampStatus(id, status) {
+    const r = await api(`/x-admin/campaigns/${id}/status`, { method:'PUT', body: JSON.stringify({status}) }).catch(()=>null);
+    if (r && r.ok) { toast('Estado de campaña actualizado'); loadCampaigns(); }
+    else toast('Error al actualizar campaña','err');
+  }
+
+  function selectCamp(id, name, row) {
+    activeCampId = id;
+    activeFilter = '';
+    document.querySelectorAll('tr.clickable').forEach(r => r.classList.remove('selected'));
+    row.classList.add('selected');
+    document.getElementById('rec-title').textContent = 'Destinatarios · ' + name;
+    document.getElementById('rec-panel').style.display = 'block';
+    document.querySelectorAll('.fbtn').forEach((b,i) => b.classList.toggle('active', i===0));
+    loadRecipients(id, '');
+    document.getElementById('rec-panel').scrollIntoView({ behavior:'smooth' });
+  }
+
+  // ─── Recipients ──────────────────────────────────────────────────────────────
+  function setFilter(btn, status) {
+    activeFilter = status;
+    document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadRecipients(activeCampId, status);
+  }
+
+  async function loadRecipients(id, statusFilter) {
+    if (!id) return;
+    document.getElementById('rec-body').innerHTML = '<div class="loading">Cargando…</div>';
+    const qs = statusFilter ? `?status=${statusFilter}` : '';
+    const r = await api(`/x-admin/campaigns/${id}/recipients${qs}`).catch(()=>null);
+    if (!r || !r.ok) { toast('Error al cargar destinatarios','err'); return; }
+    const data = await r.json();
+    document.getElementById('rec-count').textContent = data.length + ' registros';
+    renderRecipients(data);
+  }
+
+  function renderRecipients(list) {
+    if (!list.length) {
+      document.getElementById('rec-body').innerHTML = '<div class="empty">Sin registros con este filtro.</div>';
+      return;
+    }
+    const rows = list.map(r => {
+      const sc = {SENT:'sent',FAILED:'failed',PENDING:'pending'}[r.status]||'pending';
+      const errHtml = r.error ? `<span class="err-cell" title="${esc(r.error)}">${esc(r.error)}</span>` : '<span class="muted">—</span>';
+      const opts = ['PENDING','SENT','FAILED'].map(s => `<option value="${s}"${r.status===s?' selected':''}>${s}</option>`).join('');
+      return `<tr>
+        <td style="font-family:monospace;font-size:0.82rem">${esc(r.phone)}</td>
+        <td>${esc(r.name||'—')}</td>
+        <td><span class="badge b-${sc}">${r.status}</span></td>
+        <td>${errHtml}</td>
+        <td class="muted">${r.sentAt ? fmtDate(r.sentAt) : '—'}</td>
+        <td>
+          <div class="gap">
+            <select class="ssel" id="s${r.id}">${opts}</select>
+            <button class="btn btn-neutral btn-sm" onclick="saveRec(${r.id})">Guardar</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+    document.getElementById('rec-body').innerHTML = `
+      <table>
+        <thead><tr><th>Teléfono</th><th>Nombre</th><th>Estado</th><th>Error</th><th>Enviado</th><th>Editar</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  async function saveRec(id) {
+    const sel = document.getElementById('s'+id);
+    if (!sel) return;
+    const r = await api(`/x-admin/recipients/${id}`, { method:'PUT', body: JSON.stringify({status:sel.value}) }).catch(()=>null);
+    if (r && r.ok) { toast('Destinatario actualizado'); loadRecipients(activeCampId, activeFilter); }
+    else toast('Error al guardar','err');
+  }
+
+  async function doResetFailed() {
+    if (!activeCampId) return;
+    if (!confirm('¿Cambiar todos los registros FALLIDOS a PENDIENTE para poder reintentarlos?')) return;
+    const r = await api(`/x-admin/campaigns/${activeCampId}/reset-failed`, { method:'POST' }).catch(()=>null);
+    if (r && r.ok) {
+      const d = await r.json();
+      toast(`${d.count} registro(s) reseteados a PENDIENTE`);
+      loadRecipients(activeCampId, activeFilter);
+      loadCampaigns();
+    } else toast('Error al resetear','err');
+  }
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+  function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function fmtDate(d) {
+    if (!d) return '—';
+    try { return new Date(d).toLocaleString('es',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+    catch { return d; }
+  }
+
+  // ─── Init ─────────────────────────────────────────────────────────────────────
+  if (adminKey) {
+    api('/x-admin/campaigns').then(r => {
+      if (r.ok) { showApp(); loadCampaigns(); }
+      else doLogout();
+    }).catch(() => {});
+  }
+</script>
+</body>
+</html>

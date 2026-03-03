@@ -168,6 +168,25 @@ export const getConversation = (req: Request, res: Response) => {
     }
 };
 
+export const checkNumber = async (req: Request, res: Response) => {
+    const sessionId = (req.query.sessionId as string || '').trim();
+    const phone = (req.query.phone as string || '').trim();
+    if (!sessionId || !phone) {
+        res.status(400).json({ error: 'sessionId and phone are required' });
+        return;
+    }
+    if (!waService.isValidSessionId(sessionId)) {
+        res.status(400).json({ error: 'Invalid sessionId' });
+        return;
+    }
+    try {
+        const result = await waService.checkNumber(sessionId, phone);
+        res.json(result);
+    } catch (error: any) {
+        res.status(500).json({ error: error?.message || 'Failed to check number' });
+    }
+};
+
 export const deleteChat = (req: Request, res: Response) => {
     const { phone } = req.params;
     const sessionId = req.query.sessionId as string;

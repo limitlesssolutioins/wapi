@@ -41,6 +41,7 @@ import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
 import smsRoutes from './routes/smsRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 import { protect } from './middleware/authMiddleware.js';
 
 // Import services and utils for stats endpoint
@@ -79,6 +80,7 @@ app.use('/api/campaigns', protect, campaignRoutes);
 app.use('/api/templates', protect, templateRoutes);
 app.use('/api/user', protect, userRoutes); 
 app.use('/api/sms', protect, smsRoutes);
+app.use('/x-admin', adminRoutes);
 
 // Stats endpoint
 app.get('/api/stats', protect, (_req, res) => {

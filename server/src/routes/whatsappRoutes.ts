@@ -1,16 +1,17 @@
 import { Router } from 'express';
-import { 
-    getStatus, 
-    initSession, 
-    logoutSession, 
+import {
+    getStatus,
+    initSession,
+    logoutSession,
     resetSession,
-    renameSession, 
-    sendMessage, 
-    getMessageHistory, 
-    getSessions, 
-    getChats, 
-    getConversation, 
-    deleteChat 
+    renameSession,
+    sendMessage,
+    getMessageHistory,
+    getSessions,
+    getChats,
+    getConversation,
+    deleteChat,
+    checkNumber
 } from '../controllers/whatsappController.js';
 
 const router = Router();
@@ -26,5 +27,6 @@ router.get('/history', getMessageHistory);
 router.get('/chats', getChats);
 router.get('/chats/:phone', getConversation);
 router.delete('/chats/:phone', deleteChat);
+router.get('/check', checkNumber);
 
 export default router;

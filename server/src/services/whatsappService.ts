@@ -414,6 +414,20 @@ export class WhatsAppService {
         return count;
     }
 
+    async checkNumber(sessionId: string, phone: string): Promise<{ exists: boolean; jid?: string }> {
+        if (!this.isValidSessionId(sessionId)) {
+            throw new Error(`Invalid session ID: ${sessionId}`);
+        }
+        const session = this.getSession(sessionId);
+        if (!session.socket) {
+            throw new Error(`Session ${sessionId} is disconnected.`);
+        }
+        const cleanedPhone = phone.replace(/\D/g, '');
+        const results = await session.socket.onWhatsApp(cleanedPhone);
+        const result = results?.[0];
+        return { exists: !!result?.exists, jid: result?.jid };
+    }
+
     async disconnectAll(): Promise<void> {
         for (const sessionId of this.sessions.keys()) {
             await this.disconnect(sessionId);

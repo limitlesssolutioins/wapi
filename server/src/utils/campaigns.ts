@@ -192,6 +192,25 @@ export const updateRecipientStatus = (
     }
 };
 
+export const updateRecipientById = (
+    id: number,
+    status: 'PENDING' | 'SENT' | 'FAILED',
+    error?: string
+): void => {
+    const sentAt = status === 'SENT' ? new Date().toISOString() : null;
+    db.prepare(`
+        UPDATE campaign_recipients SET status = ?, error = ?, sentAt = ? WHERE id = ?
+    `).run(status, error || null, sentAt, id);
+};
+
+export const resetFailedRecipients = (campaignId: string): number => {
+    const result = db.prepare(`
+        UPDATE campaign_recipients SET status = 'PENDING', error = NULL, sentAt = NULL
+        WHERE campaign_id = ? AND status = 'FAILED'
+    `).run(campaignId);
+    return result.changes;
+};
+
 export const getPendingRecipients = (campaignId: string): CampaignRecipient[] => {
     return db.prepare(`
         SELECT * FROM campaign_recipients WHERE campaign_id = ? AND status = 'PENDING'
