@@ -4,14 +4,16 @@ import { CampaignSessionData } from '../utils/campaigns.js'; // Import CampaignS
 import { waService } from '../services/whatsappService.js'; // Import waService
 
 export const create = (req: Request, res: Response) => {
-    const { name, templateId, imageUrl, blitzMode, contactIds, groupId, sessionId, sessionIds, scheduleTime, proxyUrl } = req.body;
+    const { name, templateId, imageUrl, blitzMode, contactIds, groupId, sessionId, sessionIds, sessions, scheduleTime, proxyUrl } = req.body;
     
     // Normalize sessionIds from either sessionId (old) or sessionIds (new)
     const finalSessionIds = sessionIds && Array.isArray(sessionIds) && sessionIds.length > 0
         ? sessionIds
         : sessionId ? [sessionId] : [];
 
-    if (!name || !templateId || finalSessionIds.length === 0) {
+    const hasSessions = sessions && Array.isArray(sessions) && sessions.length > 0;
+
+    if (!name || !templateId || (!hasSessions && finalSessionIds.length === 0)) {
         return res.status(400).json({ 
             error: 'name, templateId, and at least one session ID are required' 
         });
@@ -26,6 +28,7 @@ export const create = (req: Request, res: Response) => {
             contactIds: contactIds || [],
             groupId: groupId || null,
             sessionIds: finalSessionIds,
+            sessions: sessions || undefined,
             scheduleTime: scheduleTime || null,
             proxyUrl: proxyUrl || null, // Pass proxyUrl
         });
