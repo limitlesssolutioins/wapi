@@ -187,16 +187,16 @@ class CampaignQueue {
     }
 
     private resolveVariables(templateContent: string, recipient: { name: string; phone: string }): string {
-        // First resolve Spintax: {Hola|Qué tal|Buen día}
-        let content = templateContent.replace(/\{([^{}]+)\}/g, (match, choices) => {
+        // First resolve variables so they are not caught by Spintax brackets
+        let content = templateContent
+            .replace(/\{\{name\}\}/g, recipient.name)
+            .replace(/\{\{phone\}\}/g, recipient.phone);
+
+        // Then resolve Spintax: {Hola|Qué tal|Buen día}
+        return content.replace(/\{([^{}]+)\}/g, (match, choices) => {
             const parts = choices.split('|');
             return parts[Math.floor(Math.random() * parts.length)];
         });
-
-        // Then resolve variables
-        return content
-            .replace(/\{\{name\}\}/g, recipient.name)
-            .replace(/\{\{phone\}\}/g, recipient.phone);
     }
 
     private async sleepWithStatusCheck(campaignId: string, minMs: number, maxMs: number): Promise<boolean> {
