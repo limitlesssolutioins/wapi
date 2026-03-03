@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import {
-    MessageSquare, Users, Smartphone, AlertTriangle, Send,
-    CheckCircle, BarChart3, RefreshCw, Clock, Activity, Loader2
+    Users, Smartphone, AlertTriangle, Send,
+    CheckCircle, BarChart3, RefreshCw, Clock, Activity, Loader2,
+    MessageSquare, CircleDot
 } from 'lucide-react';
 
 const COUNTRY_CODES = [
@@ -23,21 +24,28 @@ interface Stats {
     totalCampaigns: number;
     activeCampaigns: number;
     totalContacts: number;
-    recentMessages: RecentMessage[];
 }
 
-interface RecentMessage {
+interface RecentCampaign {
     id: string;
-    sessionId: string;
-    phone: string;
-    message: string;
-    timestamp: string;
-    status: 'SENT' | 'FAILED';
-    error?: string;
+    name: string;
+    status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'PAUSED' | 'FAILED' | 'CANCELLED';
+    createdAt: string;
+    stats: { total: number; sent: number; failed: number; pending: number };
 }
+
+const CAMPAIGN_STATUS_STYLE: Record<string, { dot: string; badge: string; label: string }> = {
+    PROCESSING: { dot: 'bg-blue-500',   badge: 'bg-blue-50 text-blue-600',   label: 'En proceso' },
+    QUEUED:     { dot: 'bg-slate-400',  badge: 'bg-slate-100 text-slate-500', label: 'En cola'    },
+    COMPLETED:  { dot: 'bg-emerald-500',badge: 'bg-emerald-50 text-emerald-600', label: 'Completada' },
+    PAUSED:     { dot: 'bg-amber-400',  badge: 'bg-amber-50 text-amber-600',  label: 'Pausada'    },
+    FAILED:     { dot: 'bg-red-500',    badge: 'bg-red-50 text-red-600',      label: 'Fallida'    },
+    CANCELLED:  { dot: 'bg-slate-300',  badge: 'bg-slate-100 text-slate-400', label: 'Cancelada'  },
+};
 
 export default function DashboardHome() {
     const [stats, setStats] = useState<Stats | null>(null);
+    const [recentCampaigns, setRecentCampaigns] = useState<RecentCampaign[]>([]);
     const [loading, setLoading] = useState(true);
     const [sessions, setSessions] = useState<string[]>([]);
     const [selectedSession, setSelectedSession] = useState('');
@@ -50,8 +58,12 @@ export default function DashboardHome() {
 
     const fetchStats = async () => {
         try {
-            const { data } = await api.get<Stats>('/api/stats');
-            setStats(data);
+            const [statsRes, campaignsRes] = await Promise.all([
+                api.get<Stats>('/api/stats'),
+                api.get<{ data: RecentCampaign[] }>('/api/campaigns?page=1&limit=6'),
+            ]);
+            setStats(statsRes.data);
+            setRecentCampaigns(campaignsRes.data.data);
         } catch (err) {
             console.error('Failed to fetch stats', err);
         } finally {
@@ -285,49 +297,54 @@ export default function DashboardHome() {
                     </div>
                 </div>
 
-                {/* Recent Activity */}
+                {/* Recent Campaigns */}
                 <div className="lg:col-span-3">
                     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden h-full flex flex-col">
                         <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                             <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                                 <Clock size={16} className="text-slate-500" />
-                                Actividad Reciente
+                                Campañas Recientes
                             </h3>
-                            <span className="text-xs text-slate-400">Últimos {stats?.recentMessages.length || 0} mensajes</span>
+                            <span className="text-xs text-slate-400">{recentCampaigns.length} campañas</span>
                         </div>
                         <div className="flex-1 overflow-auto divide-y divide-slate-100">
-                            {!stats?.recentMessages.length ? (
+                            {!recentCampaigns.length ? (
                                 <div className="flex flex-col items-center justify-center h-full py-12 text-slate-400">
-                                    <MessageSquare size={32} className="mb-2 text-slate-300" />
-                                    <p className="text-sm">Aún no hay mensajes</p>
-                                    <p className="text-xs text-slate-300 mt-1">Los mensajes aparecerán aquí una vez enviados</p>
+                                    <BarChart3 size={32} className="mb-2 text-slate-300" />
+                                    <p className="text-sm">Aún no hay campañas</p>
+                                    <p className="text-xs text-slate-300 mt-1">Las campañas aparecerán aquí una vez creadas</p>
                                 </div>
                             ) : (
-                                stats.recentMessages.map((msg, i) => (
-                                    <div key={`${msg.id}-${i}`} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/50 transition-colors">
-                                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                                            msg.status === 'SENT'
-                                                ? 'bg-emerald-50 text-emerald-500'
-                                                : 'bg-red-50 text-red-500'
-                                        }`}>
-                                            {msg.status === 'SENT' ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-medium text-slate-700 font-mono">{msg.phone}</span>
-                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase ${
-                                                    msg.status === 'SENT'
-                                                        ? 'bg-emerald-50 text-emerald-600'
-                                                        : 'bg-red-50 text-red-600'
-                                                }`}>{msg.status}</span>
+                                recentCampaigns.map((camp) => {
+                                    const style = CAMPAIGN_STATUS_STYLE[camp.status] ?? CAMPAIGN_STATUS_STYLE.CANCELLED;
+                                    return (
+                                        <div key={camp.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/50 transition-colors">
+                                            <CircleDot size={10} className={`flex-shrink-0 ${style.dot} rounded-full`} />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <span className="text-sm font-medium text-slate-700 truncate">{camp.name}</span>
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${style.badge}`}>
+                                                        {style.label}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-3 text-[11px]">
+                                                    <span className="text-emerald-600 font-medium flex items-center gap-0.5">
+                                                        <CheckCircle size={10} /> {camp.stats.sent}
+                                                    </span>
+                                                    <span className="text-red-500 font-medium flex items-center gap-0.5">
+                                                        <AlertTriangle size={10} /> {camp.stats.failed}
+                                                    </span>
+                                                    <span className="text-slate-400">
+                                                        {camp.stats.pending} pendientes · {camp.stats.total} total
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <p className="text-xs text-slate-500 truncate mt-0.5">{msg.message}</p>
+                                            <span className="text-[11px] text-slate-400 flex-shrink-0 whitespace-nowrap">
+                                                {new Date(camp.createdAt).toLocaleDateString('es', { day: '2-digit', month: '2-digit' })}
+                                            </span>
                                         </div>
-                                        <span className="text-[11px] text-slate-400 flex-shrink-0 whitespace-nowrap">
-                                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </span>
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </div>

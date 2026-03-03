@@ -131,18 +131,24 @@ export const getChats = (req: Request, res: Response) => {
     const sessionId = req.query.sessionId as string;
     try {
         const history = getHistory(sessionId);
-        
-        // Group by phone number and get the latest message
-        const chatsMap = new Map();
-        
-        history.forEach(msg => {
-            const existing = chatsMap.get(msg.phone);
-            if (!existing || new Date(msg.timestamp) > new Date(existing.timestamp)) {
-                chatsMap.set(msg.phone, msg);
-            }
-        });
 
-        const chats = Array.from(chatsMap.values()).sort((a, b) => 
+        // Only include phones that sent us at least one INCOMING message
+        const phonesWithIncoming = new Set(
+            history.filter(m => m.direction === 'INCOMING').map(m => m.phone)
+        );
+
+        // From those phones, take the latest message (any direction) for the preview
+        const chatsMap = new Map();
+        history
+            .filter(m => phonesWithIncoming.has(m.phone))
+            .forEach(msg => {
+                const existing = chatsMap.get(msg.phone);
+                if (!existing || new Date(msg.timestamp) > new Date(existing.timestamp)) {
+                    chatsMap.set(msg.phone, msg);
+                }
+            });
+
+        const chats = Array.from(chatsMap.values()).sort((a, b) =>
             new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
         );
 
