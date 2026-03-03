@@ -26,7 +26,7 @@ const requireKey = (req: Request, res: Response, next: NextFunction): void => {
 
 // Serve the HTML panel (key checked inside the page itself via JS)
 router.get('/', (_req: Request, res: Response) => {
-    res.sendFile(path.resolve(__dirname, '../../../views/admin.html'));
+    res.sendFile(path.resolve(__dirname, '../../views/admin.html'));
 });
 
 // Protected JSON API
