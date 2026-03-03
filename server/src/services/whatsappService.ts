@@ -7,14 +7,10 @@ import makeWASocket, {
 import { Boom } from '@hapi/boom';
 import path from 'path';
 import fs from 'fs';
-import https from 'https';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { logMessage } from '../utils/logger.js';
 import { HttpsProxyAgent } from 'https-proxy-agent';
-
-const LOCAL_ADDRESS = '160.153.190.40';
-const outboundAgent = new https.Agent({ localAddress: LOCAL_ADDRESS });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -139,7 +135,7 @@ export class WhatsAppService {
                 syncFullHistory: false,
                 generateHighQualityLinkPreview: false,
                 retryRequestDelayMs: 5000,
-                agent: proxyUrl ? new HttpsProxyAgent(proxyUrl) : outboundAgent,
+                ...(proxyUrl ? { agent: new HttpsProxyAgent(proxyUrl) } : {}),
             });
 
             session.socket = socket;
