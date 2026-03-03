@@ -231,7 +231,7 @@
       const sc = statusClass[c.status] || 'queued';
       const sel = ['QUEUED','PROCESSING','COMPLETED','PAUSED','FAILED','CANCELLED']
         .map(s => `<option value="${s}"${c.status===s?' selected':''}>${s}</option>`).join('');
-      return `<tr class="clickable${activeCampId===c.id?' selected':''}" onclick="selectCamp('${c.id}',${JSON.stringify(c.name)},this)">
+      return `<tr class="clickable${activeCampId===c.id?' selected':''}" data-id="${c.id}" data-name="${esc(c.name)}" onclick="handleCampClick(this)">
         <td>
           <div style="font-weight:500">${esc(c.name)}</div>
           <div class="muted">${c.id}</div>
@@ -262,6 +262,10 @@
     const r = await api(`/x-admin/campaigns/${id}/status`, { method:'PUT', body: JSON.stringify({status}) }).catch(()=>null);
     if (r && r.ok) { toast('Estado de campaña actualizado'); loadCampaigns(); }
     else toast('Error al actualizar campaña','err');
+  }
+
+  function handleCampClick(row) {
+    selectCamp(row.dataset.id, row.dataset.name, row);
   }
 
   function selectCamp(id, name, row) {
